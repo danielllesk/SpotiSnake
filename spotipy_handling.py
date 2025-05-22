@@ -11,7 +11,7 @@ pygame.init()
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
     SPOTIFY_CLIENT_ID,
     SPOTIFY_CLIENT_SECRET,
-    redirect_uri="http://127.0.0.1:8888/callback",
+    redirect_uri=SPOTIFY_REDIRECT_URI,
     scope="user-library-read"
 ))
 
@@ -42,15 +42,16 @@ def search_album(query):
         print(f"Error searching for album: {e}")
         return []
 
-def get_album_art(url):
+def download_and_resize_album_cover(url, target_width, target_height):
     try:
         response = requests.get(url, verify=False)
         response.raise_for_status()
         img_data = BytesIO(response.content)
         image = pygame.image.load(img_data)
-        return pygame.transform.scale(image, (40, 40))
+        image = pygame.transform.scale(image, (target_width, target_height))
+        return image
     except Exception as e:
-        print(f"Error loading album art: {e}")
+        print(f"Error downloading or resizing album art: {e}")
         return None
 
 def get_album_search_input(screen, font):
@@ -76,7 +77,7 @@ def get_album_search_input(screen, font):
                     pygame.draw.rect(screen, WHITE, result_rect)
                 pygame.draw.rect(screen, DARK_BLUE, result_rect, 1)
                 if album['image_url'] and album['uri'] not in album_covers:
-                    album_covers[album['uri']] = get_album_art(album['image_url'])
+                    album_covers[album['uri']] = download_and_resize_album_cover(album['image_url'], 40, 40)
                 if album['uri'] in album_covers and album_covers[album['uri']]:
                     screen.blit(album_covers[album['uri']], (result_rect.x + 10, result_rect.y + 10))
                     text_start_x = result_rect.x + 60
