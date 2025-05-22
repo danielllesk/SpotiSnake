@@ -7,6 +7,7 @@ GREEN = (0, 255, 0)
 RED = (255, 0, 0)
 LIGHT_BLUE = (173, 216, 230)
 DARK_BLUE = (0, 0, 139)
+LIGHT_GREY = (40,40,40)
 
 SNAKE_SPEED = 10  # How often the snake moves
 GRID_SIZE = 30  # Size for snake movement
