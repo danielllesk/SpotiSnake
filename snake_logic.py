@@ -1,6 +1,7 @@
 import pygame
 import time
 import random
+import math
 from spotipy_handling import get_album_search_input, download_and_resize_album_cover
 from shared_constants import *
 from ui import start_menu
@@ -21,6 +22,7 @@ def start_game(on_game_over):
     screen = pygame.display.set_mode((width, height))
     pygame.display.set_caption('SpotiSnake')
     clock = pygame.time.Clock()
+    start_time = time.time()
 
     # Album selection and cover processing
     album_result = get_album_search_input(screen, pygame.font.SysFont('times new roman', 20))
@@ -33,7 +35,7 @@ def start_game(on_game_over):
         print("Failed to download or resize album cover.")
         return
 
-    album_pieces = cut_image_into_pieces(album_cover_surface, GRID_SIZE, GRID_SIZE)
+    album_pieces = cut_image_into_pieces(album_cover_surface, ALBUM_GRID_SIZE, ALBUM_GRID_SIZE)
     revealed_pieces = set()
 
     # Snake game setup
@@ -45,15 +47,31 @@ def start_game(on_game_over):
     score = 0
 
     def random_fruit_pos():
-        return [random.randrange(0, width // GRID_SIZE) * GRID_SIZE,
-                random.randrange(0, height // GRID_SIZE) * GRID_SIZE]
+        while True:
+            pos = [random.randrange(0, width // GRID_SIZE) * GRID_SIZE,
+                   random.randrange(0, height // GRID_SIZE) * GRID_SIZE]
+            # Check if position overlaps with any revealed piece
+            valid_pos = True
+            for revealed_pos in revealed_pieces:
+                px, py = revealed_pos[0] * ALBUM_GRID_SIZE, revealed_pos[1] * ALBUM_GRID_SIZE
+                if (abs(pos[0] - px) < ALBUM_GRID_SIZE and 
+                    abs(pos[1] - py) < ALBUM_GRID_SIZE):
+                    valid_pos = False
+                    break
+            if valid_pos:
+                return pos
 
     fruit_pos = random_fruit_pos()
-    fruit_grid_pos = (fruit_pos[0] // GRID_SIZE, fruit_pos[1] // GRID_SIZE)
+    # Calculate both snake grid and album grid positions
+    fruit_snake_grid = (fruit_pos[0] // GRID_SIZE, fruit_pos[1] // GRID_SIZE)
+    fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
 
     running = True
 
     while running:
+        # Simple pulsing effect
+        pulse = 5 if int(time.time() * 2) % 2 == 0 else 0
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 pygame.quit()
@@ -85,10 +103,9 @@ def start_game(on_game_over):
 
         if snake_pos == fruit_pos:
             score += 10
-            revealed_pieces.add(fruit_grid_pos)
+            revealed_pieces.add(fruit_album_grid)
             fruit_pos = random_fruit_pos()
-            fruit_grid_pos = (fruit_pos[0] // GRID_SIZE, fruit_pos[1] // GRID_SIZE)
-
+            fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
 
         # Game over conditions
         if (snake_pos[0] < 0 or snake_pos[0] >= width or
@@ -97,12 +114,12 @@ def start_game(on_game_over):
             game_over(screen, score)
             return
 
-        # Draw background
+        # Draw everything
         screen.fill(BLACK)
 
         # Draw revealed album pieces
         for pos in revealed_pieces:
-            px, py = pos[0] * GRID_SIZE, pos[1] * GRID_SIZE
+            px, py = pos[0] * ALBUM_GRID_SIZE, pos[1] * ALBUM_GRID_SIZE
             screen.blit(album_pieces[pos], (px, py))
 
         # Draw snake
@@ -110,10 +127,24 @@ def start_game(on_game_over):
             pygame.draw.rect(screen, GREEN, pygame.Rect(block[0], block[1], GRID_SIZE, GRID_SIZE))
 
         # Draw fruit as album piece
-        if fruit_grid_pos in album_pieces:
-            screen.blit(album_pieces[fruit_grid_pos], (fruit_pos[0], fruit_pos[1]))
-        else:
-            pygame.draw.rect(screen, WHITE, pygame.Rect(fruit_pos[0], fruit_pos[1], GRID_SIZE, GRID_SIZE))
+        fruit_pos_valid = True
+        for pos in revealed_pieces:
+            px, py = pos[0] * ALBUM_GRID_SIZE, pos[1] * ALBUM_GRID_SIZE
+            # Check if fruit position overlaps with any revealed piece
+            if (abs(fruit_pos[0] - px) < ALBUM_GRID_SIZE and 
+                abs(fruit_pos[1] - py) < ALBUM_GRID_SIZE):
+                fruit_pos_valid = False
+                break
+
+        if fruit_pos_valid:
+            if fruit_album_grid in album_pieces:
+                screen.blit(pygame.transform.scale(album_pieces[fruit_album_grid], (GRID_SIZE, GRID_SIZE)), 
+                           (fruit_pos[0] - pulse//2, fruit_pos[1] - pulse//2))
+            else:
+                pygame.draw.rect(screen, WHITE, 
+                               pygame.Rect(fruit_pos[0] - pulse//2, 
+                                         fruit_pos[1] - pulse//2, 
+                                         GRID_SIZE + pulse, GRID_SIZE + pulse))
 
         show_score(screen, score)
         pygame.display.update()
