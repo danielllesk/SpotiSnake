@@ -39,9 +39,8 @@ def start_game(on_game_over):
     revealed_pieces = set()
 
     # Snake game setup
-    snake_length = 5  # Fixed length
     snake_pos = [width // 2, height // 2]
-    snake_body = [[snake_pos[0] - i * GRID_SIZE, snake_pos[1]] for i in range(snake_length)]
+    snake_body = [[snake_pos[0] - i * GRID_SIZE, snake_pos[1]] for i in range(5)]
     direction = 'RIGHT'
     change_to = direction
     score = 0
@@ -96,15 +95,16 @@ def start_game(on_game_over):
         elif direction == 'RIGHT':
             snake_pos[0] += GRID_SIZE
 
-        snake_body.insert(0, list(snake_pos))
-
-        if len(snake_body) > snake_length:
-            snake_body.pop()
+        # Update snake body positions
+        for i in range(len(snake_body)-1, 0, -1):
+            snake_body[i] = snake_body[i-1]
+        snake_body[0] = list(snake_pos)
 
         if snake_pos == fruit_pos:
             score += 10
             revealed_pieces.add(fruit_album_grid)
             fruit_pos = random_fruit_pos()
+            fruit_snake_grid = (fruit_pos[0] // GRID_SIZE, fruit_pos[1] // GRID_SIZE)
             fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
 
         # Game over conditions
@@ -113,9 +113,12 @@ def start_game(on_game_over):
             snake_pos in snake_body[1:]):
             game_over(screen, score)
             return
+        elif score == 1000:
+            winning_screen(screen, score, album_pieces)
+            return
 
         # Draw everything
-        screen.fill(BLACK)
+        screen.fill(LIGHT_GREY)
 
         # Draw revealed album pieces
         for pos in revealed_pieces:
@@ -154,6 +157,38 @@ def show_score(screen, score):
     font = pygame.font.SysFont('times new roman', 20)
     score_surface = font.render('Score : ' + str(score), True, WHITE)
     screen.blit(score_surface, (10, 10))
+
+def winning_screen(screen, score, album_pieces):
+    # Show album art for 5 seconds
+    start_time = time.time()
+    clock = pygame.time.Clock()
+    while time.time() - start_time < 5:
+        screen.fill(BLACK)
+        
+        # Draw all album pieces
+        for row in range(height // ALBUM_GRID_SIZE):
+            for col in range(width // ALBUM_GRID_SIZE):
+                pos = (col, row)
+                if pos in album_pieces:
+                    px, py = pos[0] * ALBUM_GRID_SIZE, pos[1] * ALBUM_GRID_SIZE
+                    screen.blit(album_pieces[pos], (px, py))
+        
+        # Show winning message for first 3 seconds
+        if time.time() - start_time < 3:
+            font = pygame.font.SysFont('times new roman', 50)
+            score_surface = font.render("YOU THE GOAT!\nYour Score is: " + str(score), True, GREEN)
+            screen.blit(score_surface, (width//2 - score_surface.get_width()//2, height//2 - score_surface.get_height()//2))
+        else:
+            # Show countdown for last 2 seconds
+            font = pygame.font.SysFont('times new roman', 50)
+            countdown = int(5 - (time.time() - start_time))
+            countdown_surface = font.render(f"Returning to menu in {countdown}...", True, WHITE)
+            screen.blit(countdown_surface, (width//2 - countdown_surface.get_width()//2, height//2))
+        
+        pygame.display.flip()
+        clock.tick(60)  # Cap at 60 FPS
+    
+    start_menu()
 
 def game_over(screen, score):
     font = pygame.font.SysFont('times new roman', 50)
