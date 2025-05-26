@@ -15,8 +15,8 @@ GRID_SIZE = 30  # Size for snake movement
 ALBUM_GRID_SIZE = 60  # Size for album pieces
 
 # Spotify API credentials
-SPOTIFY_CLIENT_ID = "defd35be86e24389ad40e4f29d9fee68"  # Replace with your Spotify Client ID
-SPOTIFY_CLIENT_SECRET = "9d636af19f3f4fc6909bfff710da8b11"  # Replace with your Spotify Client Secret
+SPOTIFY_CLIENT_ID = "defd35be86e24389ad40e4f29d9fee68"  
+SPOTIFY_CLIENT_SECRET = "9d636af19f3f4fc6909bfff710da8b11"  
 SPOTIFY_REDIRECT_URI = "http://127.0.0.1:8888/callback"
 
 button_width = width // 3        

@@ -5,11 +5,7 @@ from shared_constants import *
 import requests
 from io import BytesIO
 import random
-import json
-import os
 import time
-import webbrowser
-from urllib.parse import urlparse, parse_qs
 
 clock = pygame.time.Clock()
 pygame.init()
@@ -54,6 +50,9 @@ def show_login_screen(screen, font):
     error_timer = 0
     is_authenticating = False
     
+    # Create a larger font for the title
+    title_font = pygame.font.SysFont("Press Start 2P", 55)
+    
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -75,10 +74,10 @@ def show_login_screen(screen, font):
                     finally:
                         is_authenticating = False
 
-        screen.fill((30, 30, 30))
+        screen.fill(DARK_GREY)
         
-        # Draw title
-        title = font.render("Welcome to SpotiSnake", True, WHITE)
+        # Draw title with larger font
+        title = title_font.render("Welcome to SpotiSnake!", True, LIGHT_BLUE)
         screen.blit(title, (width//2 - title.get_width()//2, height//4))
         
         # Draw login button
@@ -96,16 +95,16 @@ def show_login_screen(screen, font):
         
         # Draw instructions
         instructions = [
-            "Click the button above to login with your Spotify account",
-            "A browser window will open for authorization",
-            "After authorizing, return to this window",
-            "Note: You need a Spotify Premium account to play music"
+            "Click to login with Spotify",
+            "Spotify Browser will open for log-in",
+            "Return to this window after log-in confirmed",
+            "NOTE: you need a Spotify Premium account to play music"
         ]
         y_offset = height//2 + 50
         for instruction in instructions:
             text = font.render(instruction, True, WHITE)
             screen.blit(text, (width//2 - text.get_width()//2, y_offset))
-            y_offset += 30
+            y_offset += 60
             
         # Draw error message if any
         if error_message and time.time() - error_timer < 3:
@@ -183,13 +182,14 @@ def get_album_search_input(screen, font):
     def draw_button(text, x, y, w, h, inactive_color, active_color):
         mouse = pygame.mouse.get_pos()
         click = pygame.mouse.get_pressed()
+        button_font = pygame.font.SysFont("Press Start 2P", 25)
         if x < mouse[0] < x + w and y < mouse[1] < y + h:
             pygame.draw.rect(screen, active_color, (x, y, w, h))
             if click[0] == 1:
                 return True
         else:
             pygame.draw.rect(screen, inactive_color, (x, y, w, h))
-        text_surf = font.render(text, True, BLACK)
+        text_surf = button_font.render(text, True, BLACK)
         text_rect = text_surf.get_rect(center=(x + w // 2, y + h // 2))
         screen.blit(text_surf, text_rect)
         return False
@@ -199,28 +199,29 @@ def get_album_search_input(screen, font):
             pygame.draw.rect(screen, WHITE, results_area)
             y_offset = results_area.y + 10
             for album in search_results:
-                result_rect = pygame.Rect(results_area.x + 5, y_offset, results_area.width - 10, 60)
+                result_rect = pygame.Rect(results_area.x + 5, y_offset, results_area.width - 10, 70)
                 if result_rect.collidepoint(pygame.mouse.get_pos()):
                     pygame.draw.rect(screen, LIGHT_BLUE, result_rect)
                 else:
                     pygame.draw.rect(screen, WHITE, result_rect)
                 pygame.draw.rect(screen, DARK_BLUE, result_rect, 1)
                 if album['image_url'] and album['uri'] not in album_covers:
-                    album_covers[album['uri']] = download_and_resize_album_cover(album['image_url'], 40, 40)
+                    album_covers[album['uri']] = download_and_resize_album_cover(album['image_url'], 50, 50)
                 if album['uri'] in album_covers and album_covers[album['uri']]:
                     screen.blit(album_covers[album['uri']], (result_rect.x + 10, result_rect.y + 10))
-                    text_start_x = result_rect.x + 60
+                    text_start_x = result_rect.x + 70
                 else:
                     text_start_x = result_rect.x + 10
-                name_surf = font.render(album['name'], True, BLACK)
+                name_font = pygame.font.SysFont('times new roman', 20)  # Changed to Times New Roman
+                name_surf = name_font.render(album['name'], True, BLACK)
                 screen.blit(name_surf, (text_start_x, result_rect.y + 10))
-                artist_font = pygame.font.SysFont('times new roman', int(font.get_height() * 0.8))
+                artist_font = pygame.font.SysFont('times new roman', 20)  # Already Times New Roman
                 artist_surf = artist_font.render(album['artist'], True, DARK_BLUE)
-                screen.blit(artist_surf, (text_start_x, result_rect.y + 35))
-                y_offset += 70
+                screen.blit(artist_surf, (text_start_x, result_rect.y + 40))
+                y_offset += 80
         else:
             # Draw "No results" message if search_results is empty
-            no_results_surf = font.render("No results found", True, WHITE)
+            no_results_surf = font.render("No results found, click enter to search", True, WHITE)
             screen.blit(no_results_surf, (results_area.x + 10, results_area.y + 10))
 
     while True:
@@ -239,10 +240,10 @@ def get_album_search_input(screen, font):
                 elif search_results:
                     y_offset = results_area.y + 10
                     for album in search_results:
-                        result_rect = pygame.Rect(results_area.x + 5, y_offset, results_area.width - 10, 60)
+                        result_rect = pygame.Rect(results_area.x + 5, y_offset, results_area.width - 10, 70)
                         if result_rect.collidepoint(event.pos):
                             return album
-                        y_offset += 70
+                        y_offset += 80
                 else:
                     active = False
                     color = color_inactive
@@ -262,7 +263,8 @@ def get_album_search_input(screen, font):
                         text += event.unicode
 
         screen.fill((30, 30, 30))
-        label = font.render("Search for an album:", True, WHITE)
+        label_font = pygame.font.SysFont("Press Start 2P", 25)
+        label = label_font.render("Search for an album:", True, WHITE)
         screen.blit(label, (input_box.x, input_box.y - 30))
         txt_surface = font.render(text, True, color)
         width = max(400, txt_surface.get_width() + 10)
