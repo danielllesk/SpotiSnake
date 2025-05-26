@@ -1,13 +1,13 @@
 import pygame
 import sys
 from shared_constants import *
-from spotipy_handling import show_login_screen
+from spotipy_handling import show_login_screen, sp
 
 pygame.init()
 screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption("SpotiSnake - Start Menu")
 clock = pygame.time.Clock()
-font = pygame.font.SysFont("Corbel", 36)
+font = pygame.font.SysFont("Press Start 2P", 25)  # Reduced from 50 to 45
 
 def draw_button(text, x, y, w, h, inactive_color, active_color, action=None, action_arg=None):
     mouse = pygame.mouse.get_pos()
@@ -33,13 +33,13 @@ def quit_game(n):
 def start_menu():
     running = True
     play_clicked = False
-    
     # Show login screen and get Spotify instance
     global sp
-    sp = show_login_screen(screen, font)
-    if not sp:
-        quit_game(0)
-        return
+    if not sp:  # Only show login if not already authenticated
+        sp = show_login_screen(screen, font)
+        if not sp:
+            quit_game(0)
+            return
     
     # Start background music after successful login
     try:
@@ -65,7 +65,8 @@ def start_menu():
                     running = False
         
         screen.fill(DARK_GREY)
-        title_text = font.render("Welcome to SpotiSnake", True, LIGHT_BLUE)
+        title_font = pygame.font.SysFont("Press Start 2P", 45)
+        title_text = title_font.render("SpotiSnake", True, LIGHT_BLUE)
         title_rect = title_text.get_rect(center=(width // 2, 100))
         screen.blit(title_text, title_rect)
         

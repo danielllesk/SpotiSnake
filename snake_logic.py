@@ -22,10 +22,9 @@ def start_game(on_game_over):
     screen = pygame.display.set_mode((width, height))
     pygame.display.set_caption('SpotiSnake')
     clock = pygame.time.Clock()
-    start_time = time.time()
 
     # Album selection and cover processing
-    album_result = get_album_search_input(screen, pygame.font.SysFont('times new roman', 20))
+    album_result = get_album_search_input(screen, pygame.font.SysFont('corbel', 20))
     if not album_result:
         return
 
@@ -64,8 +63,7 @@ def start_game(on_game_over):
                 return pos
 
     fruit_pos = random_fruit_pos()
-    # Calculate both snake grid and album grid positions
-    fruit_snake_grid = (fruit_pos[0] // GRID_SIZE, fruit_pos[1] // GRID_SIZE)
+    # Calculate album grid position for the fruit
     fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
 
     running = True
@@ -111,7 +109,6 @@ def start_game(on_game_over):
             score += 10
             revealed_pieces.add(fruit_album_grid)
             fruit_pos = random_fruit_pos()
-            fruit_snake_grid = (fruit_pos[0] // GRID_SIZE, fruit_pos[1] // GRID_SIZE)
             fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
             
             # Play new track every 5 pieces of fruit
@@ -175,14 +172,16 @@ def start_game(on_game_over):
         clock.tick(SNAKE_SPEED)
 
 def show_score(screen, score):
-    font = pygame.font.SysFont('times new roman', 20)
-    score_surface = font.render('Score : ' + str(score), True, WHITE)
+    font = pygame.font.SysFont('Press Start 2P', 35)
+    score_surface = font.render(f'Score: {score}', True, WHITE)
     screen.blit(score_surface, (10, 10))
 
 def winning_screen(screen, score, album_pieces):
-    # Show album art for 5 seconds
+    #  album art for 5 seconds
     start_time = time.time()
     clock = pygame.time.Clock()
+    font = pygame.font.SysFont('Press Start 2P', 45)
+    
     while time.time() - start_time < 5:
         screen.fill(BLACK)
         
@@ -196,14 +195,15 @@ def winning_screen(screen, score, album_pieces):
         
         # Show winning message for first 3 seconds
         if time.time() - start_time < 3:
-            font = pygame.font.SysFont('times new roman', 50)
-            score_surface = font.render("YOU THE GOAT!\nYour Score is: " + str(score), True, GREEN)
-            screen.blit(score_surface, (width//2 - score_surface.get_width()//2, height//2 - score_surface.get_height()//2))
+            # Split message into two lines for better fit
+            msg1 = font.render("YOU THE GOAT!", True, GREEN)
+            msg2 = font.render(f"Score: {score}", True, GREEN)
+            screen.blit(msg1, (width//2 - msg1.get_width()//2, height//2 - 80))
+            screen.blit(msg2, (width//2 - msg2.get_width()//2, height//2 + 20))
         else:
             # Show countdown for last 2 seconds
-            font = pygame.font.SysFont('times new roman', 50)
             countdown = int(5 - (time.time() - start_time))
-            countdown_surface = font.render(f"Returning to menu in {countdown}...", True, WHITE)
+            countdown_surface = font.render(f"Menu in {countdown}...", True, WHITE)
             screen.blit(countdown_surface, (width//2 - countdown_surface.get_width()//2, height//2))
         
         pygame.display.flip()
@@ -212,8 +212,8 @@ def winning_screen(screen, score, album_pieces):
     start_menu()
 
 def game_over(screen, score):
-    font = pygame.font.SysFont('times new roman', 50)
-    msg = font.render('Your Score is : ' + str(score), True, RED)
+    font = pygame.font.SysFont('times new roman', 45)
+    msg = font.render(f'Game Over! Score: {score}', True, RED)
     rect = msg.get_rect(center=(width // 2, height // 2))
     screen.blit(msg, rect)
     pygame.display.flip()
