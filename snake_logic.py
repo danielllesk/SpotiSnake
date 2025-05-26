@@ -2,7 +2,7 @@ import pygame
 import time
 import random
 import math
-from spotipy_handling import get_album_search_input, download_and_resize_album_cover, play_random_track_from_album
+from spotipy_handling import get_album_search_input, download_and_resize_album_cover, play_random_track_from_album, sp
 from shared_constants import *
 from ui import start_menu
 
@@ -34,6 +34,9 @@ def start_game(on_game_over):
     if album_cover_surface is None:
         print("Failed to download or resize album cover.")
         return
+
+    # Play first track immediately after album selection
+    play_random_track_from_album(album_result['uri'])
 
     album_pieces = cut_image_into_pieces(album_cover_surface, ALBUM_GRID_SIZE, ALBUM_GRID_SIZE)
     revealed_pieces = set()
@@ -73,6 +76,10 @@ def start_game(on_game_over):
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                try:
+                    sp.pause_playback()
+                except:
+                    pass
                 pygame.quit()
                 return
             if event.type == pygame.KEYDOWN:
@@ -115,9 +122,19 @@ def start_game(on_game_over):
         if (snake_pos[0] < 0 or snake_pos[0] >= width or
             snake_pos[1] < 0 or snake_pos[1] >= height or
             snake_pos in snake_body[1:]):
+            # Stop music before game over
+            try:
+                sp.pause_playback()
+            except:
+                pass
             game_over(screen, score)
             return
-        elif score == 1000:
+        elif score >= 990:  # Changed from == to >= to ensure it triggers
+            # Stop music before winning screen
+            try:
+                sp.pause_playback()
+            except:
+                pass
             winning_screen(screen, score, album_pieces)
             return
 
