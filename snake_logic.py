@@ -2,7 +2,7 @@ import pygame
 import time
 import random
 import math
-from spotipy_handling import get_album_search_input, download_and_resize_album_cover
+from spotipy_handling import get_album_search_input, download_and_resize_album_cover, play_random_track_from_album
 from shared_constants import *
 from ui import start_menu
 
@@ -106,6 +106,10 @@ def start_game(on_game_over):
             fruit_pos = random_fruit_pos()
             fruit_snake_grid = (fruit_pos[0] // GRID_SIZE, fruit_pos[1] // GRID_SIZE)
             fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
+            
+            # Play new track every 5 pieces of fruit
+            if score == 0 or score % 50 == 0:
+                play_random_track_from_album(album_result['uri'])
 
         # Game over conditions
         if (snake_pos[0] < 0 or snake_pos[0] >= width or
