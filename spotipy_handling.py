@@ -4,15 +4,26 @@ from spotipy.oauth2 import SpotifyOAuth
 from shared_constants import *
 import requests
 from io import BytesIO
+import random
 
 clock = pygame.time.Clock()
 pygame.init()
 
+# Define the required scopes for playback
+SCOPES = [
+    "user-modify-playback-state",
+    "user-read-playback-state",
+    "user-read-email",
+    "user-read-private"
+]
+
+# Create Spotify client with playback scopes
 sp = spotipy.Spotify(auth_manager=SpotifyOAuth(
-    SPOTIFY_CLIENT_ID,
-    SPOTIFY_CLIENT_SECRET,
+    client_id=SPOTIFY_CLIENT_ID,
+    client_secret=SPOTIFY_CLIENT_SECRET,
     redirect_uri=SPOTIFY_REDIRECT_URI,
-    scope="user-library-read"
+    scope=" ".join(SCOPES),
+    open_browser=True
 ))
 
 def search_album(query):
@@ -134,3 +145,55 @@ def get_album_search_input(screen, font):
         draw_search_results()
         pygame.display.flip()
         clock.tick(30)
+
+def play_random_track_from_album(album_uri):
+    try:
+        # First, check for available devices
+        devices = sp.devices()
+        if not devices or not devices['devices']:
+            print("No Spotify devices found. Please open Spotify on your device.")
+            return False
+
+        # Get all tracks from the album
+        results = sp.album_tracks(album_uri)
+        tracks = results['items']
+        
+        # If there are more tracks, get them all
+        while results['next']:
+            results = sp.next(results)
+            tracks.extend(results['items'])
+            
+        if not tracks:
+            return False
+            
+        # Select a random track
+        track = random.choice(tracks)
+        track_uri = track['uri']
+        
+        # Get track duration in milliseconds
+        track_info = sp.track(track_uri)
+        duration_ms = track_info['duration_ms']
+        
+        # Calculate a random start position (at least 30 seconds before the end)
+        max_start = duration_ms - 30000  # 30 seconds before end
+        if max_start > 0:
+            start_position = random.randint(0, max_start)
+        else:
+            start_position = 0
+
+        # Try to transfer playback to the first available device
+        try:
+            sp.transfer_playback(devices['devices'][0]['id'], force_play=True)
+        except Exception as e:
+            print(f"Error transferring playback: {e}")
+            
+        # Start playback
+        sp.start_playback(
+            device_id=devices['devices'][0]['id'],
+            uris=[track_uri],
+            position_ms=start_position
+        )
+        return True
+    except Exception as e:
+        print(f"Error playing track: {e}")
+        return False
