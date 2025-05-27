@@ -2,7 +2,7 @@ import pygame
 import time
 import random
 import math
-from spotipy_handling import get_album_search_input, download_and_resize_album_cover, play_random_track_from_album, sp
+from spotipy_handling import get_album_search_input, download_and_resize_album_cover, play_random_track_from_album, sp, play_specific_track
 from shared_constants import *
 from ui import start_menu
 
@@ -26,16 +26,24 @@ def start_game(on_game_over):
     # Album selection and cover processing
     album_result = get_album_search_input(screen, pygame.font.SysFont('corbel', 20))
     if not album_result:
+        on_game_over() # Go back to start menu if album selection is cancelled
         return
 
     print(f"Selected album: {album_result['name']} by {album_result['artist']}")
     album_cover_surface = download_and_resize_album_cover(album_result['image_url'], width, height)
     if album_cover_surface is None:
         print("Failed to download or resize album cover.")
+        on_game_over() # Go back to start menu
         return
 
-    # Play first track immediately after album selection
-    play_random_track_from_album(album_result['uri'])
+    # Variable to track if the *next* fruit eaten should trigger the Easter Egg
+    easter_egg_primed = False 
+
+    # Play first track
+    played_successfully, track_was_easter_egg = play_random_track_from_album(album_result['uri'])
+    if played_successfully and track_was_easter_egg:
+        easter_egg_primed = True
+        print("Easter Egg primed by initial track!")
 
     album_pieces = cut_image_into_pieces(album_cover_surface, ALBUM_GRID_SIZE, ALBUM_GRID_SIZE)
     revealed_pieces = set()
@@ -75,9 +83,8 @@ def start_game(on_game_over):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 try:
-                    sp.pause_playback()
-                except:
-                    pass
+                    if sp: sp.pause_playback()
+                except: pass
                 pygame.quit()
                 return
             if event.type == pygame.KEYDOWN:
@@ -108,12 +115,23 @@ def start_game(on_game_over):
         if snake_pos == fruit_pos:
             score += 10
             revealed_pieces.add(fruit_album_grid)
+
+            if easter_egg_primed:
+                trigger_easter_egg_sequence(screen, album_pieces, on_game_over)
+                return # Exit game loop
+
             fruit_pos = random_fruit_pos()
             fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
             
-            # Play new track every 5 pieces of fruit
-            if score == 0 or score % 50 == 0:
-                play_random_track_from_album(album_result['uri'])
+            if score > 0 and score % 50 == 0:
+                played_successfully, track_was_easter_egg = play_random_track_from_album(album_result['uri'])
+                if played_successfully and track_was_easter_egg:
+                    easter_egg_primed = True
+                    print("Easter Egg primed by subsequent track!")
+                else:
+                    easter_egg_primed = False # Reset if a non-EE track plays
+            elif not played_successfully: # If initial or subsequent play failed, reset
+                 easter_egg_primed = False
 
         # Game over conditions
         if (snake_pos[0] < 0 or snake_pos[0] >= width or
@@ -121,17 +139,15 @@ def start_game(on_game_over):
             snake_pos in snake_body[1:]):
             # Stop music before game over
             try:
-                sp.pause_playback()
-            except:
-                pass
+                if sp: sp.pause_playback()
+            except: pass
             game_over(screen, score)
             return
-        elif score >= 990:  # Changed from == to >= to ensure it triggers
+        elif score > 990:  # Changed from == to >= to ensure it triggers
             # Stop music before winning screen
             try:
-                sp.pause_playback()
-            except:
-                pass
+                if sp: sp.pause_playback()
+            except: pass
             winning_screen(screen, score, album_pieces)
             return
 
@@ -181,7 +197,16 @@ def winning_screen(screen, score, album_pieces):
     start_time = time.time()
     clock = pygame.time.Clock()
     font = pygame.font.SysFont('Press Start 2P', 45)
-    
+    # Consider pausing game music and playing a specific winning track if desired
+    # play_specific_track("spotify:track:YOUR_WINNING_TRACK_URI") 
+    # For now, it seems to play the easter egg track on winning screen, which might be unintentional
+    # If you want the easter egg track only for the easter egg, remove or change this line:
+    # sp.start_playback(sp.devices['devices'][0]['id'], ["spotify:track:4UQMOPSUVJVicIQzjAcRRZ"], 0)
+    # Let's assume for now we want to pause any game music and not start a new one here.
+    try:
+        if sp: sp.pause_playback() 
+    except: pass
+
     while time.time() - start_time < 5:
         screen.fill(BLACK)
         
@@ -210,6 +235,74 @@ def winning_screen(screen, score, album_pieces):
         clock.tick(60)  # Cap at 60 FPS
     
     start_menu()
+
+def trigger_easter_egg_sequence(screen, album_pieces, on_game_over_callback):
+    """Handles the Easter Egg sequence: play song, show album, show message, show button."""
+    print("Easter Egg Triggered!")
+    play_specific_track(EASTER_EGG_TRACK_URI)
+
+    # Display full album art for 3 seconds
+    easter_egg_start_time = time.time()
+    clock = pygame.time.Clock()
+
+    while time.time() - easter_egg_start_time < 3:
+        screen.fill(BLACK) # Background
+        for row in range(height // ALBUM_GRID_SIZE):
+            for col in range(width // ALBUM_GRID_SIZE):
+                pos = (col, row)
+                if pos in album_pieces:
+                    px, py = pos[0] * ALBUM_GRID_SIZE, pos[1] * ALBUM_GRID_SIZE
+                    screen.blit(album_pieces[pos], (px, py))
+        pygame.display.flip()
+        clock.tick(30)
+
+    # Display special message and button
+    special_message_font = pygame.font.SysFont('Press Start 2P', 30) # Adjusted font size
+    button_font = pygame.font.SysFont('Press Start 2P', 25)
+    
+    message_line1 = "Congrats! You found the"
+    message_line2 = "ME! - Danny" # Your special message
+
+    msg_surf1 = special_message_font.render(message_line1, True, LIGHT_BLUE)
+    msg_surf2 = special_message_font.render(message_line2, True, LIGHT_BLUE)
+    
+    msg_rect1 = msg_surf1.get_rect(center=(width // 2, height // 2 - 50))
+    msg_rect2 = msg_surf2.get_rect(center=(width // 2, height // 2))
+
+    button_text = "Back to Start Menu"
+    button_width = 400
+    button_height = 50
+    button_x = width // 2 - button_width // 2
+    button_y = height // 2 + 100
+    button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
+
+    message_loop = True
+    while message_loop:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                try:
+                    if sp: sp.pause_playback()
+                except: pass
+                pygame.quit()
+                return # Return from trigger_easter_egg_sequence if window is closed
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if button_rect.collidepoint(event.pos):
+                    start_menu() # This calls start_menu()
+                    return # Exit trigger_easter_egg_sequence immediately
+                           # This ensures start_menu() takes full control without this loop continuing
+
+        screen.fill(BLACK) # Background
+        screen.blit(msg_surf1, msg_rect1)
+        screen.blit(msg_surf2, msg_rect2)
+
+        # Draw button
+        pygame.draw.rect(screen, LIGHT_BLUE, button_rect)
+        btn_text_surf = button_font.render(button_text, True, BLACK)
+        btn_text_rect = btn_text_surf.get_rect(center=button_rect.center)
+        screen.blit(btn_text_surf, btn_text_rect)
+
+        pygame.display.flip()
+        clock.tick(30)
 
 def game_over(screen, score):
     font = pygame.font.SysFont('times new roman', 45)

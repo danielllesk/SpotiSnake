@@ -6,6 +6,7 @@ import requests
 from io import BytesIO
 import random
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 clock = pygame.time.Clock()
 pygame.init()
@@ -17,6 +18,26 @@ SCOPES = [
     "user-read-email",
     "user-read-private"
 ]
+
+# Global variables
+sp = None
+cached_device_id = None
+executor = ThreadPoolExecutor(max_workers=1)
+
+def get_spotify_device(spotify_instance):
+    global cached_device_id
+    if cached_device_id is None:
+        try:
+            devices = spotify_instance.devices()
+            if not devices or not devices['devices']:
+                print("No Spotify devices found. Please open Spotify on your device.")
+                return None
+            cached_device_id = devices['devices'][0]['id']
+            print("Successfully connected to Spotify device!")
+        except Exception as e:
+            print(f"Error getting Spotify device: {e}")
+            return None
+    return cached_device_id
 
 def authenticate_spotify():
     try:
@@ -31,16 +52,21 @@ def authenticate_spotify():
         )
         
         # Create Spotify instance
-        sp = spotipy.Spotify(auth_manager=auth_manager)
+        spotify_instance = spotipy.Spotify(auth_manager=auth_manager)
         
         # Test the connection
-        user = sp.current_user()
+        user = spotify_instance.current_user()
         print(f"Successfully connected to Spotify as {user['display_name']}!")
-        return sp
+        
+        # Get the device ID right after authentication
+        if get_spotify_device(spotify_instance) is None:
+            print("Failed to find a valid Spotify device. Please open Spotify and try again.")
+            return None
+            
+        return spotify_instance
     except Exception as e:
         print(f"Authentication error: {e}")
         return None
-    
 
 def show_login_screen(screen, font):
     global sp
@@ -65,7 +91,7 @@ def show_login_screen(screen, font):
                         if sp:
                             return sp
                         else:
-                            error_message = "Login failed. Please try again."
+                            error_message = "Login failed. Please ensure Spotify is open and try again."
                             error_timer = time.time()
                     except Exception as e:
                         error_message = "Login failed. Please try again."
@@ -114,8 +140,80 @@ def show_login_screen(screen, font):
         pygame.display.flip()
         clock.tick(30)
 
-# Initialize sp variable
-sp = None
+def play_track_sync(track_uri, position_ms):
+    """Synchronous function to play a track"""
+    global sp, cached_device_id
+    try:
+        sp.start_playback(
+            device_id=cached_device_id,
+            uris=[track_uri],
+            position_ms=position_ms
+        )
+        return True
+    except Exception as e:
+        print(f"Error in playback: {e}")
+        return False
+
+def play_specific_track(track_uri):
+    """Plays a specific track URI from the beginning."""
+    global sp, cached_device_id, executor
+    if not sp or not cached_device_id:
+        print("Spotify not ready or no device for specific track.")
+        return False
+    try:
+        # Use the executor to run the playback in a separate thread
+        future = executor.submit(play_track_sync, track_uri, 0) # Play from position 0
+        print(f"Attempting to play specific Easter Egg track: {track_uri}")
+        # We could add future.add_done_callback(handle_future_result) if needed
+        return True
+    except Exception as e:
+        print(f"Error submitting specific track {track_uri} for playback: {e}")
+        return False
+
+def play_random_track_from_album(album_uri):
+    """Plays a random track from the album and returns if it was the Easter Egg track."""
+    global sp # Ensure sp is accessible
+    try:
+        # Get tracks and select a random one in a single API call
+        results = sp.album_tracks(album_uri, limit=50)
+        tracks = results['items']
+        
+        if not tracks:
+            return False, False # Did not play, not Easter Egg
+            
+        # Select a random track
+        track = random.choice(tracks)
+        track_uri = track['uri']
+        
+        # Calculate random position
+        position_ms = random.randint(0, max(0, track['duration_ms'] - 30000))
+        
+        # Use the executor to run the playback in a separate thread
+        future = executor.submit(play_track_sync, track_uri, position_ms)
+        
+        is_easter_egg_track_selected = (track_uri == EASTER_EGG_TRACK_URI)
+        if is_easter_egg_track_selected:
+            print(f"Randomly selected track is the Easter Egg track: {track_uri}")
+            
+        # future.add_done_callback(some_callback_if_needed) # Optional: if you need to know when it finishes/fails
+        return True, is_easter_egg_track_selected # Played successfully, and whether it was the EE track
+            
+    except Exception as e:
+        print(f"Error playing random track from album {album_uri}: {e}")
+        return False, False # Did not play, not Easter Egg
+
+# Cleanup function
+def cleanup():
+    try:
+        if sp:
+            sp.pause_playback()
+        if executor:
+            executor.shutdown(wait=False)
+    except:
+        pass
+
+# Add cleanup to pygame quit
+pygame.quit = cleanup
 
 def search_album(query):
     global sp
@@ -153,7 +251,7 @@ def search_album(query):
 
 def download_and_resize_album_cover(url, target_width, target_height):
     try:
-        response = requests.get(url, verify=False)
+        response = requests.get(url, verify=False) # Consider removing verify=False for security if possible
         response.raise_for_status()
         img_data = BytesIO(response.content)
         image = pygame.image.load(img_data)
@@ -179,7 +277,7 @@ def get_album_search_input(screen, font):
     search_results = []
     album_covers = {}
 
-    def draw_button(text, x, y, w, h, inactive_color, active_color):
+    def draw_button(text_content, x, y, w, h, inactive_color, active_color): # Renamed text to text_content to avoid conflict
         mouse = pygame.mouse.get_pos()
         click = pygame.mouse.get_pressed()
         button_font = pygame.font.SysFont("Press Start 2P", 25)
@@ -189,7 +287,7 @@ def get_album_search_input(screen, font):
                 return True
         else:
             pygame.draw.rect(screen, inactive_color, (x, y, w, h))
-        text_surf = button_font.render(text, True, BLACK)
+        text_surf = button_font.render(text_content, True, BLACK)
         text_rect = text_surf.get_rect(center=(x + w // 2, y + h // 2))
         screen.blit(text_surf, text_rect)
         return False
@@ -212,15 +310,14 @@ def get_album_search_input(screen, font):
                     text_start_x = result_rect.x + 70
                 else:
                     text_start_x = result_rect.x + 10
-                name_font = pygame.font.SysFont('times new roman', 20)  # Changed to Times New Roman
+                name_font = pygame.font.SysFont('times new roman', 20)
                 name_surf = name_font.render(album['name'], True, BLACK)
                 screen.blit(name_surf, (text_start_x, result_rect.y + 10))
-                artist_font = pygame.font.SysFont('times new roman', 20)  # Already Times New Roman
+                artist_font = pygame.font.SysFont('times new roman', 20)
                 artist_surf = artist_font.render(album['artist'], True, DARK_BLUE)
                 screen.blit(artist_surf, (text_start_x, result_rect.y + 40))
                 y_offset += 80
         else:
-            # Draw "No results" message if search_results is empty
             no_results_surf = font.render("No results found, click enter to search", True, WHITE)
             screen.blit(no_results_surf, (results_area.x + 10, results_area.y + 10))
 
@@ -228,11 +325,12 @@ def get_album_search_input(screen, font):
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 try:
-                    sp.pause_playback()
+                    if sp:
+                        sp.pause_playback()
                 except:
                     pass
                 pygame.quit()
-                return None
+                return None # Important to return None to signal quit
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if input_box.collidepoint(event.pos):
                     active = not active
@@ -245,18 +343,18 @@ def get_album_search_input(screen, font):
                             return album
                         y_offset += 80
                 else:
-                    active = False
+                    active = False # Deactivate input box if clicked outside
                     color = color_inactive
             if event.type == pygame.KEYDOWN:
                 if active:
                     if event.key == pygame.K_RETURN:
                         if text:
-                            print(f"Searching for: {text}")  # Debug print
+                            print(f"Searching for: {text}")
                             search_results = search_album(text)
-                            album_covers.clear()
+                            album_covers.clear() # Clear old covers
                     elif event.key == pygame.K_BACKSPACE:
                         text = text[:-1]
-                        if not text:
+                        if not text: # Clear results if text is empty
                             search_results = []
                             album_covers.clear()
                     else:
@@ -267,74 +365,28 @@ def get_album_search_input(screen, font):
         label = label_font.render("Search for an album:", True, WHITE)
         screen.blit(label, (input_box.x, input_box.y - 30))
         txt_surface = font.render(text, True, color)
-        width = max(400, txt_surface.get_width() + 10)
-        input_box.w = width
+        # Adjust input_box width dynamically based on text, but with a minimum
+        current_width = max(400, txt_surface.get_width() + 10)
+        input_box.w = current_width
         screen.blit(txt_surface, (input_box.x + 5, input_box.y + 5))
         pygame.draw.rect(screen, color, input_box, 2)
         draw_search_results()
         
         # Draw quit button at bottom left
-        quit_button_x = 20  # 20 pixels from left edge
-        quit_button_y = height - button_height - 20  # 20 pixels from bottom
-        if draw_button("Quit", quit_button_x, quit_button_y, button_width, button_height, LIGHT_BLUE, DARK_BLUE):
+        # Ensure button_width and button_height are defined or use constants
+        # For example:
+        button_width_val = 100 
+        button_height_val = 50
+        quit_button_x = 20
+        quit_button_y = height - button_height_val - 20
+        if draw_button("Quit", quit_button_x, quit_button_y, button_width_val, button_height_val, LIGHT_BLUE, DARK_BLUE):
             try:
-                sp.pause_playback()
+                if sp:
+                    sp.pause_playback()
             except:
                 pass
             pygame.quit()
-            return None
+            return None # Important to return None to signal quit
             
         pygame.display.flip()
         clock.tick(30)
-
-def play_random_track_from_album(album_uri):
-    try:
-        # First, check for available devices
-        devices = sp.devices()
-        if not devices or not devices['devices']:
-            print("No Spotify devices found. Please open Spotify on your device.")
-            return False
-
-        # Get all tracks from the album
-        results = sp.album_tracks(album_uri)
-        tracks = results['items']
-        
-        # If there are more tracks, get them all
-        while results['next']:
-            results = sp.next(results)
-            tracks.extend(results['items'])
-            
-        if not tracks:
-            return False
-            
-        # Select a random track
-        track = random.choice(tracks)
-        track_uri = track['uri']
-        
-        # Get track duration in milliseconds
-        track_info = sp.track(track_uri)
-        duration_ms = track_info['duration_ms']
-        
-        # Calculate a random start position (at least 30 seconds before the end)
-        max_start = duration_ms - 30000  # 30 seconds before end
-        if max_start > 0:
-            start_position = random.randint(0, max_start)
-        else:
-            start_position = 0
-
-        # Try to transfer playback to the first available device
-        try:
-            sp.transfer_playback(devices['devices'][0]['id'], force_play=True)
-        except Exception as e:
-            print(f"Error transferring playback: {e}")
-            
-        # Start playback
-        sp.start_playback(
-            device_id=devices['devices'][0]['id'],
-            uris=[track_uri],
-            position_ms=start_position
-        )
-        return True
-    except Exception as e:
-        print(f"Error playing track: {e}")
-        return False
