@@ -142,16 +142,62 @@ def show_login_screen(screen, font):
 
 def play_track_sync(track_uri, position_ms):
     """Synchronous function to play a track"""
-    global sp, cached_device_id
+    global sp, cached_device_id, executor
     try:
+        if not cached_device_id:
+            print("No cached device ID for playback. Attempting to find one.")
+            if not get_spotify_device(sp): # Attempt to re-acquire device
+                print("Still no active Spotify device found for playback.")
+                return False
+
         sp.start_playback(
             device_id=cached_device_id,
             uris=[track_uri],
             position_ms=position_ms
         )
+        # print(f"Successfully started playback of {track_uri} on device {cached_device_id}")
         return True
+    except spotipy.exceptions.SpotifyException as e:
+        print(f"Spotify API error during playback: {e.status_code} - {e.msg}")
+        if e.status_code == 403: # Restriction violated or similar
+            print("Playback restriction. Clearing cached device ID. Ensure Spotify is active on a device.")
+            cached_device_id = None # Clear stale device ID
+        elif e.status_code == 404: # Device not found
+             print("Device not found. Clearing cached device ID.")
+             cached_device_id = None
+        return False
     except Exception as e:
-        print(f"Error in playback: {e}")
+        print(f"Generic error in play_track_sync: {e}")
+        return False
+
+def robust_pause_playback():
+    global sp, cached_device_id
+    if not sp:
+        print("Spotify instance not available for robust_pause_playback.")
+        return False
+    if not cached_device_id:
+        # Try to get a device if we don't have one, though pause usually implies one was active.
+        print("No cached device for pause. Attempting to find one.")
+        if not get_spotify_device(sp):
+            print("No active Spotify device found to pause.")
+            return False # No device, can't pause
+
+    try:
+        print(f"Attempting to pause playback on device {cached_device_id}")
+        sp.pause_playback(device_id=cached_device_id)
+        print("Playback paused successfully.")
+        return True
+    except spotipy.exceptions.SpotifyException as e:
+        print(f"Spotify API error during pause: {e.status_code} - {e.msg}")
+        if e.status_code == 403: # Restriction violated or similar
+            print("Pause restriction. Clearing cached device ID. Ensure Spotify is active on a device.")
+            cached_device_id = None # Clear stale device ID
+        elif e.status_code == 404: # Device not found
+             print("Device not found for pause. Clearing cached device ID.")
+             cached_device_id = None
+        return False
+    except Exception as e:
+        print(f"Generic error during robust_pause_playback: {e}")
         return False
 
 def play_specific_track(track_uri):
@@ -251,7 +297,7 @@ def search_album(query):
 
 def download_and_resize_album_cover(url, target_width, target_height):
     try:
-        response = requests.get(url, verify=False) # Consider removing verify=False for security if possible
+        response = requests.get(url)
         response.raise_for_status()
         img_data = BytesIO(response.content)
         image = pygame.image.load(img_data)

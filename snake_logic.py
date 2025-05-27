@@ -2,11 +2,51 @@ import pygame
 import time
 import random
 import math
-from spotipy_handling import get_album_search_input, download_and_resize_album_cover, play_random_track_from_album, sp, play_specific_track
+from spotipy_handling import (
+    get_album_search_input, download_and_resize_album_cover, 
+    play_random_track_from_album, sp, play_specific_track, 
+    robust_pause_playback
+)
 from shared_constants import *
 from ui import start_menu
 
 pygame.init()
+
+OUTLINE_COLOR = BLACK
+OUTLINE_THICKNESS = 2 # You can adjust this for a thicker/thinner outline
+
+def render_text_with_outline(text_str, font, main_color, outline_color, thickness):
+    # Render the outline text (multiple times for a thicker effect if desired)
+    # For a simple outline, rendering at 4 diagonal and 4 cardinal points is common.
+    outline_surfaces = []
+    positions = [
+        (-thickness, -thickness), ( thickness, -thickness), (-thickness,  thickness), ( thickness,  thickness),
+        (-thickness, 0), (thickness, 0), (0, -thickness), (0, thickness)
+    ]
+    for dx, dy in positions:
+        text_surface_outline = font.render(text_str, True, outline_color)
+        outline_surfaces.append((text_surface_outline, (dx, dy)))
+
+    # Render the main text
+    text_surface_main = font.render(text_str, True, main_color)
+    
+    # Determine the size of the final surface
+    # Find max width and height considering the main text and all outline parts
+    # Initial width/height is from the main text
+    final_width = text_surface_main.get_width() + 2 * thickness
+    final_height = text_surface_main.get_height() + 2 * thickness
+
+    # Create a new surface with transparency for the combined text and outline
+    final_surface = pygame.Surface((final_width, final_height), pygame.SRCALPHA)
+
+    # Blit outline surfaces first, offset by thickness to center them
+    for surf, (dx, dy) in outline_surfaces:
+        final_surface.blit(surf, (thickness + dx, thickness + dy))
+    
+    # Blit the main text on top, offset by thickness
+    final_surface.blit(text_surface_main, (thickness, thickness))
+    
+    return final_surface
 
 def cut_image_into_pieces(image_surface, piece_width, piece_height):
     pieces = {}
@@ -48,6 +88,9 @@ def start_game(on_game_over):
     album_pieces = cut_image_into_pieces(album_cover_surface, ALBUM_GRID_SIZE, ALBUM_GRID_SIZE)
     revealed_pieces = set()
 
+    # Calculate total number of album pieces to win
+    total_album_pieces = (width // ALBUM_GRID_SIZE) * (height // ALBUM_GRID_SIZE)
+
     # Snake game setup
     snake_pos = [width // 2, height // 2]
     snake_body = [[snake_pos[0] - i * GRID_SIZE, snake_pos[1]] for i in range(5)]
@@ -56,22 +99,26 @@ def start_game(on_game_over):
     score = 0
 
     def random_fruit_pos():
+        # This function assumes there's at least one valid spot left.
+        # The main game logic now prevents calling this if all spots are filled.
         while True:
             pos = [random.randrange(0, width // GRID_SIZE) * GRID_SIZE,
                    random.randrange(0, height // GRID_SIZE) * GRID_SIZE]
-            # Check if position overlaps with any revealed piece
             valid_pos = True
-            for revealed_pos in revealed_pieces:
-                px, py = revealed_pos[0] * ALBUM_GRID_SIZE, revealed_pos[1] * ALBUM_GRID_SIZE
-                if (abs(pos[0] - px) < ALBUM_GRID_SIZE and 
-                    abs(pos[1] - py) < ALBUM_GRID_SIZE):
-                    valid_pos = False
-                    break
+            # Check if this new fruit position would be on an already revealed album piece
+            # Convert fruit's top-left to album grid coordinates
+            fruit_on_album_grid_col = pos[0] // ALBUM_GRID_SIZE
+            fruit_on_album_grid_row = pos[1] // ALBUM_GRID_SIZE
+            if (fruit_on_album_grid_col, fruit_on_album_grid_row) in revealed_pieces:
+                valid_pos = False
+            
             if valid_pos:
-                return pos
+                # Additionally, ensure snake body doesn't currently occupy the fruit spawn
+                # This is a basic check; more sophisticated checks might be needed if GRID_SIZE != ALBUM_GRID_SIZE
+                if list(pos) not in snake_body:
+                    return pos
 
     fruit_pos = random_fruit_pos()
-    # Calculate album grid position for the fruit
     fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
 
     running = True
@@ -82,9 +129,7 @@ def start_game(on_game_over):
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                try:
-                    if sp: sp.pause_playback()
-                except: pass
+                robust_pause_playback()
                 pygame.quit()
                 return
             if event.type == pygame.KEYDOWN:
@@ -114,12 +159,24 @@ def start_game(on_game_over):
 
         if snake_pos == fruit_pos:
             score += 10
-            revealed_pieces.add(fruit_album_grid)
+            # The fruit_album_grid is the piece that this fruit was "on"
+            # Ensure this piece is not already revealed if fruit can spawn on revealed pieces
+            # However, random_fruit_pos should ideally prevent spawning on revealed pieces.
+            # For safety, let's use the fruit_album_grid calculated when fruit was spawned.
+            if fruit_album_grid not in revealed_pieces:
+                revealed_pieces.add(fruit_album_grid)
 
             if easter_egg_primed:
                 trigger_easter_egg_sequence(screen, album_pieces, on_game_over)
-                return # Exit game loop
+                return
 
+            # Check for win condition (all pieces revealed)
+            if len(revealed_pieces) >= total_album_pieces: # Use >= for safety
+                robust_pause_playback()
+                winning_screen(screen, score, album_pieces)
+                return
+
+            # If not won, and not easter egg, generate new fruit and continue
             fruit_pos = random_fruit_pos()
             fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
             
@@ -129,25 +186,19 @@ def start_game(on_game_over):
                     easter_egg_primed = True
                     print("Easter Egg primed by subsequent track!")
                 else:
-                    easter_egg_primed = False # Reset if a non-EE track plays
-            elif not played_successfully: # If initial or subsequent play failed, reset
-                 easter_egg_primed = False
+                    easter_egg_primed = False
+            elif not played_successfully and not easter_egg_primed: # if play failed & not already primed
+                easter_egg_primed = False
 
-        # Game over conditions
+        # Game over by collision or boundary
         if (snake_pos[0] < 0 or snake_pos[0] >= width or
             snake_pos[1] < 0 or snake_pos[1] >= height or
             snake_pos in snake_body[1:]):
-            # Stop music before game over
-            try:
-                if sp: sp.pause_playback()
-            except: pass
+            robust_pause_playback()
             game_over(screen, score)
             return
-        elif score > 990:  # Changed from == to >= to ensure it triggers
-            # Stop music before winning screen
-            try:
-                if sp: sp.pause_playback()
-            except: pass
+        elif score > 990 and len(revealed_pieces) >= total_album_pieces:
+            robust_pause_playback()
             winning_screen(screen, score, album_pieces)
             return
 
@@ -163,25 +214,26 @@ def start_game(on_game_over):
         for block in snake_body:
             pygame.draw.rect(screen, GREEN, pygame.Rect(block[0], block[1], GRID_SIZE, GRID_SIZE))
 
-        # Draw fruit as album piece
-        fruit_pos_valid = True
-        for pos in revealed_pieces:
-            px, py = pos[0] * ALBUM_GRID_SIZE, pos[1] * ALBUM_GRID_SIZE
-            # Check if fruit position overlaps with any revealed piece
-            if (abs(fruit_pos[0] - px) < ALBUM_GRID_SIZE and 
-                abs(fruit_pos[1] - py) < ALBUM_GRID_SIZE):
-                fruit_pos_valid = False
-                break
+        # Drawing fruit: ensure fruit_album_grid is valid and piece exists
+        if fruit_album_grid in album_pieces:
+            # Check if the current fruit position would be on an already revealed piece.
+            # This logic is slightly complex as fruit can be smaller than album piece.
+            # The random_fruit_pos should ideally handle this.
+            # We can simplify drawing if random_fruit_pos guarantees it's on an unrevealed piece.
+            is_fruit_on_revealed_area = False
+            fruit_col_on_album_grid = fruit_pos[0] // ALBUM_GRID_SIZE
+            fruit_row_on_album_grid = fruit_pos[1] // ALBUM_GRID_SIZE
+            if (fruit_col_on_album_grid, fruit_row_on_album_grid) in revealed_pieces:
+                is_fruit_on_revealed_area = True
 
-        if fruit_pos_valid:
-            if fruit_album_grid in album_pieces:
+            if not is_fruit_on_revealed_area:
                 screen.blit(pygame.transform.scale(album_pieces[fruit_album_grid], (GRID_SIZE, GRID_SIZE)), 
                            (fruit_pos[0] - pulse//2, fruit_pos[1] - pulse//2))
-            else:
-                pygame.draw.rect(screen, WHITE, 
-                               pygame.Rect(fruit_pos[0] - pulse//2, 
-                                         fruit_pos[1] - pulse//2, 
-                                         GRID_SIZE + pulse, GRID_SIZE + pulse))
+        else: # Fallback if fruit_album_grid isn't in album_pieces (shouldn't happen with good random_fruit_pos)
+            pygame.draw.rect(screen, WHITE, 
+                           pygame.Rect(fruit_pos[0] - pulse//2, 
+                                     fruit_pos[1] - pulse//2, 
+                                     GRID_SIZE + pulse, GRID_SIZE + pulse))
 
         show_score(screen, score)
         pygame.display.update()
@@ -189,28 +241,21 @@ def start_game(on_game_over):
 
 def show_score(screen, score):
     font = pygame.font.SysFont('Press Start 2P', 35)
-    score_surface = font.render(f'Score: {score}', True, WHITE)
+    score_surface = render_text_with_outline(f'Score: {score}', font, WHITE, OUTLINE_COLOR, OUTLINE_THICKNESS)
     screen.blit(score_surface, (10, 10))
 
 def winning_screen(screen, score, album_pieces):
-    #  album art for 5 seconds
+    #  album art for 8 seconds (changed from 5)
     start_time = time.time()
+    WINNING_SCREEN_DURATION = 8 # Changed from 5
+    COUNTDOWN_START_TIME = 3 # Start countdown in the last N seconds
+
     clock = pygame.time.Clock()
     font = pygame.font.SysFont('Press Start 2P', 45)
-    # Consider pausing game music and playing a specific winning track if desired
-    # play_specific_track("spotify:track:YOUR_WINNING_TRACK_URI") 
-    # For now, it seems to play the easter egg track on winning screen, which might be unintentional
-    # If you want the easter egg track only for the easter egg, remove or change this line:
-    # sp.start_playback(sp.devices['devices'][0]['id'], ["spotify:track:4UQMOPSUVJVicIQzjAcRRZ"], 0)
-    # Let's assume for now we want to pause any game music and not start a new one here.
-    try:
-        if sp: sp.pause_playback() 
-    except: pass
+    robust_pause_playback()
 
-    while time.time() - start_time < 5:
+    while time.time() - start_time < WINNING_SCREEN_DURATION:
         screen.fill(BLACK)
-        
-        # Draw all album pieces
         for row in range(height // ALBUM_GRID_SIZE):
             for col in range(width // ALBUM_GRID_SIZE):
                 pos = (col, row)
@@ -218,35 +263,31 @@ def winning_screen(screen, score, album_pieces):
                     px, py = pos[0] * ALBUM_GRID_SIZE, pos[1] * ALBUM_GRID_SIZE
                     screen.blit(album_pieces[pos], (px, py))
         
-        # Show winning message for first 3 seconds
-        if time.time() - start_time < 3:
-            # Split message into two lines for better fit
-            msg1 = font.render("YOU THE GOAT!", True, GREEN)
-            msg2 = font.render(f"Score: {score}", True, GREEN)
-            screen.blit(msg1, (width//2 - msg1.get_width()//2, height//2 - 80))
-            screen.blit(msg2, (width//2 - msg2.get_width()//2, height//2 + 20))
+        elapsed_time = time.time() - start_time
+        # Show winning message for first (WINNING_SCREEN_DURATION - COUNTDOWN_START_TIME) seconds
+        if elapsed_time < (WINNING_SCREEN_DURATION - COUNTDOWN_START_TIME):
+            msg1_surf = render_text_with_outline("YOU THE GOAT!", font, GREEN, OUTLINE_COLOR, OUTLINE_THICKNESS)
+            msg2_surf = render_text_with_outline(f"Score: {score}", font, GREEN, OUTLINE_COLOR, OUTLINE_THICKNESS)
+            screen.blit(msg1_surf, (width//2 - msg1_surf.get_width()//2, height//2 - 80))
+            screen.blit(msg2_surf, (width//2 - msg2_surf.get_width()//2, height//2 + 20))
         else:
-            # Show countdown for last 2 seconds
-            countdown = int(5 - (time.time() - start_time))
-            countdown_surface = font.render(f"Menu in {countdown}...", True, WHITE)
+            # Show countdown for last COUNTDOWN_START_TIME seconds
+            countdown = int(WINNING_SCREEN_DURATION - elapsed_time)
+            if countdown < 0: countdown = 0 # Ensure countdown doesn't go negative
+            countdown_surface = render_text_with_outline(f"Menu in {countdown}...", font, WHITE, OUTLINE_COLOR, OUTLINE_THICKNESS)
             screen.blit(countdown_surface, (width//2 - countdown_surface.get_width()//2, height//2))
         
         pygame.display.flip()
-        clock.tick(60)  # Cap at 60 FPS
-    
+        clock.tick(60)
     start_menu()
 
 def trigger_easter_egg_sequence(screen, album_pieces, on_game_over_callback):
-    """Handles the Easter Egg sequence: play song, show album, show message, show button."""
     print("Easter Egg Triggered!")
     play_specific_track(EASTER_EGG_TRACK_URI)
-
-    # Display full album art for 3 seconds
     easter_egg_start_time = time.time()
     clock = pygame.time.Clock()
-
     while time.time() - easter_egg_start_time < 3:
-        screen.fill(BLACK) # Background
+        screen.fill(BLACK)
         for row in range(height // ALBUM_GRID_SIZE):
             for col in range(width // ALBUM_GRID_SIZE):
                 pos = (col, row)
@@ -255,48 +296,42 @@ def trigger_easter_egg_sequence(screen, album_pieces, on_game_over_callback):
                     screen.blit(album_pieces[pos], (px, py))
         pygame.display.flip()
         clock.tick(30)
-
-    # Display special message and button
-    special_message_font = pygame.font.SysFont('Press Start 2P', 30) # Adjusted font size
+        
+    special_message_font = pygame.font.SysFont('Press Start 2P', 30)
     button_font = pygame.font.SysFont('Press Start 2P', 25)
     
     message_line1 = "Congrats! You found the"
-    message_line2 = "ME! - Danny" # Your special message
+    message_line2 = "ME! - Danny"
 
-    msg_surf1 = special_message_font.render(message_line1, True, LIGHT_BLUE)
-    msg_surf2 = special_message_font.render(message_line2, True, LIGHT_BLUE)
+    msg_surf1 = render_text_with_outline(message_line1, special_message_font, LIGHT_BLUE, OUTLINE_COLOR, OUTLINE_THICKNESS)
+    msg_surf2 = render_text_with_outline(message_line2, special_message_font, LIGHT_BLUE, OUTLINE_COLOR, OUTLINE_THICKNESS)
     
     msg_rect1 = msg_surf1.get_rect(center=(width // 2, height // 2 - 50))
     msg_rect2 = msg_surf2.get_rect(center=(width // 2, height // 2))
 
     button_text = "Back to Start Menu"
-    button_width = 400
-    button_height = 50
-    button_x = width // 2 - button_width // 2
+    button_w = 400 # Renamed from button_width to avoid conflict with global if any
+    button_h = 50  # Renamed from button_height
+    button_x = width // 2 - button_w // 2
     button_y = height // 2 + 100
-    button_rect = pygame.Rect(button_x, button_y, button_width, button_height)
-
+    button_rect = pygame.Rect(button_x, button_y, button_w, button_h)
     message_loop = True
     while message_loop:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                try:
-                    if sp: sp.pause_playback()
-                except: pass
+                robust_pause_playback()
                 pygame.quit()
-                return # Return from trigger_easter_egg_sequence if window is closed
+                return 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if button_rect.collidepoint(event.pos):
-                    start_menu() # This calls start_menu()
-                    return # Exit trigger_easter_egg_sequence immediately
-                           # This ensures start_menu() takes full control without this loop continuing
-
-        screen.fill(BLACK) # Background
+                    start_menu() 
+                    return 
+        screen.fill(BLACK) 
         screen.blit(msg_surf1, msg_rect1)
         screen.blit(msg_surf2, msg_rect2)
 
-        # Draw button
         pygame.draw.rect(screen, LIGHT_BLUE, button_rect)
+        # Button text usually doesn't need outline if on solid background, but can be added if needed
         btn_text_surf = button_font.render(button_text, True, BLACK)
         btn_text_rect = btn_text_surf.get_rect(center=button_rect.center)
         screen.blit(btn_text_surf, btn_text_rect)
@@ -305,10 +340,10 @@ def trigger_easter_egg_sequence(screen, album_pieces, on_game_over_callback):
         clock.tick(30)
 
 def game_over(screen, score):
-    font = pygame.font.SysFont('times new roman', 45)
-    msg = font.render(f'Game Over! Score: {score}', True, RED)
-    rect = msg.get_rect(center=(width // 2, height // 2))
-    screen.blit(msg, rect)
+    game_over_font = pygame.font.SysFont('Press Start 2P', 40) # Example of using consistent font
+    msg_surface = render_text_with_outline(f'Game Over! Score: {score}', game_over_font, RED, OUTLINE_COLOR, OUTLINE_THICKNESS)
+    rect = msg_surface.get_rect(center=(width // 2, height // 2))
+    screen.blit(msg_surface, rect)
     pygame.display.flip()
     time.sleep(2)
     start_menu()
