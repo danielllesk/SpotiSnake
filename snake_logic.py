@@ -4,8 +4,7 @@ import random
 import math
 from spotipy_handling import (
     get_album_search_input, download_and_resize_album_cover, 
-    play_random_track_from_album, sp, play_specific_track, 
-    robust_pause_playback
+    play_random_track_from_album, sp, play_specific_track
 )
 from shared_constants import *
 from ui import start_menu
@@ -58,22 +57,21 @@ def cut_image_into_pieces(image_surface, piece_width, piece_height):
             pieces[grid_pos] = piece
     return pieces  # {(x, y): surface, ...}
 
-def start_game(on_game_over):
-    screen = pygame.display.set_mode((width, height))
+def start_game(screen):
     pygame.display.set_caption('SpotiSnake')
     clock = pygame.time.Clock()
 
     # Album selection and cover processing
     album_result = get_album_search_input(screen, pygame.font.SysFont('corbel', 20))
     if not album_result:
-        on_game_over() # Go back to start menu if album selection is cancelled
+        start_menu()
         return
 
     print(f"Selected album: {album_result['name']} by {album_result['artist']}")
     album_cover_surface = download_and_resize_album_cover(album_result['image_url'], width, height)
     if album_cover_surface is None:
         print("Failed to download or resize album cover.")
-        on_game_over() # Go back to start menu
+        start_menu()
         return
 
     # Variable to track if the *next* fruit eaten should trigger the Easter Egg
@@ -129,7 +127,9 @@ def start_game(on_game_over):
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                robust_pause_playback()
+                try: 
+                    if sp: sp.pause_playback()
+                except Exception as e: print(f"Error pausing on quit: {e}")
                 pygame.quit()
                 return
             if event.type == pygame.KEYDOWN:
@@ -167,12 +167,14 @@ def start_game(on_game_over):
                 revealed_pieces.add(fruit_album_grid)
 
             if easter_egg_primed:
-                trigger_easter_egg_sequence(screen, album_pieces, on_game_over)
+                trigger_easter_egg_sequence(screen, album_pieces)
                 return
 
             # Check for win condition (all pieces revealed)
             if len(revealed_pieces) >= total_album_pieces: # Use >= for safety
-                robust_pause_playback()
+                try: 
+                    if sp: sp.pause_playback()
+                except Exception as e: print(f"Error pausing before win screen: {e}")
                 winning_screen(screen, score, album_pieces)
                 return
 
@@ -194,11 +196,15 @@ def start_game(on_game_over):
         if (snake_pos[0] < 0 or snake_pos[0] >= width or
             snake_pos[1] < 0 or snake_pos[1] >= height or
             snake_pos in snake_body[1:]):
-            robust_pause_playback()
+            try: 
+                if sp: sp.pause_playback()
+            except Exception as e: print(f"Error pausing on game over: {e}")
             game_over(screen, score)
             return
         elif score > 990 and len(revealed_pieces) >= total_album_pieces:
-            robust_pause_playback()
+            try: 
+                if sp: sp.pause_playback()
+            except Exception as e: print(f"Error pausing before win screen (score): {e}")
             winning_screen(screen, score, album_pieces)
             return
 
@@ -252,8 +258,7 @@ def winning_screen(screen, score, album_pieces):
 
     clock = pygame.time.Clock()
     font = pygame.font.SysFont('Press Start 2P', 45)
-    robust_pause_playback()
-
+    # Pause is called before entering this screen
     while time.time() - start_time < WINNING_SCREEN_DURATION:
         screen.fill(BLACK)
         for row in range(height // ALBUM_GRID_SIZE):
@@ -281,7 +286,7 @@ def winning_screen(screen, score, album_pieces):
         clock.tick(60)
     start_menu()
 
-def trigger_easter_egg_sequence(screen, album_pieces, on_game_over_callback):
+def trigger_easter_egg_sequence(screen, album_pieces):
     print("Easter Egg Triggered!")
     play_specific_track(EASTER_EGG_TRACK_URI)
     easter_egg_start_time = time.time()
@@ -319,11 +324,14 @@ def trigger_easter_egg_sequence(screen, album_pieces, on_game_over_callback):
     while message_loop:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                robust_pause_playback()
+                try: 
+                    if sp: sp.pause_playback()
+                except Exception as e: print(f"Error pausing on Easter Egg quit: {e}")
                 pygame.quit()
                 return 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if button_rect.collidepoint(event.pos):
+                    # The Easter egg song is short; letting it play out or be cut by next screen
                     start_menu() 
                     return 
         screen.fill(BLACK) 

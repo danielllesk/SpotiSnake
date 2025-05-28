@@ -24,6 +24,8 @@ sp = None
 cached_device_id = None
 executor = ThreadPoolExecutor(max_workers=1)
 
+EASTER_EGG_TRACK_URI = "spotify:track:4UQMOPSUVJVicIQzjAcRRZ"
+
 def get_spotify_device(spotify_instance):
     global cached_device_id
     if cached_device_id is None:
@@ -146,7 +148,7 @@ def play_track_sync(track_uri, position_ms):
     try:
         if not cached_device_id:
             print("No cached device ID for playback. Attempting to find one.")
-            if not get_spotify_device(sp): # Attempt to re-acquire device
+            if not get_spotify_device(sp):
                 print("Still no active Spotify device found for playback.")
                 return False
 
@@ -155,62 +157,26 @@ def play_track_sync(track_uri, position_ms):
             uris=[track_uri],
             position_ms=position_ms
         )
-        # print(f"Successfully started playback of {track_uri} on device {cached_device_id}")
         return True
     except spotipy.exceptions.SpotifyException as e:
         print(f"Spotify API error during playback: {e.status_code} - {e.msg}")
-        if e.status_code == 403: # Restriction violated or similar
-            print("Playback restriction. Clearing cached device ID. Ensure Spotify is active on a device.")
-            cached_device_id = None # Clear stale device ID
-        elif e.status_code == 404: # Device not found
-             print("Device not found. Clearing cached device ID.")
-             cached_device_id = None
+        if e.status_code == 403 or e.status_code == 404:
+            print(f"Playback issue ({e.status_code}). Clearing cached device ID. Ensure Spotify is active.")
+            cached_device_id = None
         return False
     except Exception as e:
         print(f"Generic error in play_track_sync: {e}")
-        return False
-
-def robust_pause_playback():
-    global sp, cached_device_id
-    if not sp:
-        print("Spotify instance not available for robust_pause_playback.")
-        return False
-    if not cached_device_id:
-        # Try to get a device if we don't have one, though pause usually implies one was active.
-        print("No cached device for pause. Attempting to find one.")
-        if not get_spotify_device(sp):
-            print("No active Spotify device found to pause.")
-            return False # No device, can't pause
-
-    try:
-        print(f"Attempting to pause playback on device {cached_device_id}")
-        sp.pause_playback(device_id=cached_device_id)
-        print("Playback paused successfully.")
-        return True
-    except spotipy.exceptions.SpotifyException as e:
-        print(f"Spotify API error during pause: {e.status_code} - {e.msg}")
-        if e.status_code == 403: # Restriction violated or similar
-            print("Pause restriction. Clearing cached device ID. Ensure Spotify is active on a device.")
-            cached_device_id = None # Clear stale device ID
-        elif e.status_code == 404: # Device not found
-             print("Device not found for pause. Clearing cached device ID.")
-             cached_device_id = None
-        return False
-    except Exception as e:
-        print(f"Generic error during robust_pause_playback: {e}")
         return False
 
 def play_specific_track(track_uri):
     """Plays a specific track URI from the beginning."""
     global sp, cached_device_id, executor
     if not sp or not cached_device_id:
-        print("Spotify not ready or no device for specific track.")
-        return False
+        if not sp or not get_spotify_device(sp):
+            print("Spotify not ready or no device for specific track.")
+            return False
     try:
-        # Use the executor to run the playback in a separate thread
-        future = executor.submit(play_track_sync, track_uri, 0) # Play from position 0
-        print(f"Attempting to play specific Easter Egg track: {track_uri}")
-        # We could add future.add_done_callback(handle_future_result) if needed
+        future = executor.submit(play_track_sync, track_uri, 0)
         return True
     except Exception as e:
         print(f"Error submitting specific track {track_uri} for playback: {e}")
@@ -218,48 +184,39 @@ def play_specific_track(track_uri):
 
 def play_random_track_from_album(album_uri):
     """Plays a random track from the album and returns if it was the Easter Egg track."""
-    global sp # Ensure sp is accessible
+    global sp, executor
     try:
-        # Get tracks and select a random one in a single API call
         results = sp.album_tracks(album_uri, limit=50)
         tracks = results['items']
-        
         if not tracks:
-            return False, False # Did not play, not Easter Egg
-            
-        # Select a random track
+            return False, False
         track = random.choice(tracks)
         track_uri = track['uri']
-        
-        # Calculate random position
         position_ms = random.randint(0, max(0, track['duration_ms'] - 30000))
         
-        # Use the executor to run the playback in a separate thread
-        future = executor.submit(play_track_sync, track_uri, position_ms)
+        played_successfully = play_track_sync(track_uri, position_ms)
         
         is_easter_egg_track_selected = (track_uri == EASTER_EGG_TRACK_URI)
-        if is_easter_egg_track_selected:
+        if played_successfully and is_easter_egg_track_selected:
             print(f"Randomly selected track is the Easter Egg track: {track_uri}")
             
-        # future.add_done_callback(some_callback_if_needed) # Optional: if you need to know when it finishes/fails
-        return True, is_easter_egg_track_selected # Played successfully, and whether it was the EE track
-            
+        return played_successfully, is_easter_egg_track_selected
     except Exception as e:
         print(f"Error playing random track from album {album_uri}: {e}")
-        return False, False # Did not play, not Easter Egg
+        return False, False
 
-# Cleanup function
 def cleanup():
     try:
         if sp:
-            sp.pause_playback()
+            try:
+                print("Attempting to pause playback on cleanup...")
+                sp.pause_playback()
+            except Exception as e:
+                print(f"Error pausing on cleanup: {e}")
         if executor:
             executor.shutdown(wait=False)
     except:
         pass
-
-# Add cleanup to pygame quit
-pygame.quit = cleanup
 
 def search_album(query):
     global sp
