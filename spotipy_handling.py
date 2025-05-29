@@ -6,7 +6,7 @@ import requests
 from io import BytesIO
 import random
 import time
-from concurrent.futures import ThreadPoolExecutor
+import asyncio
 
 clock = pygame.time.Clock()
 pygame.init()
@@ -22,22 +22,37 @@ SCOPES = [
 # Global variables
 sp = None
 cached_device_id = None
-executor = ThreadPoolExecutor(max_workers=1)
 
 EASTER_EGG_TRACK_URI = "spotify:track:4UQMOPSUVJVicIQzjAcRRZ"
 
 def get_spotify_device(spotify_instance):
     global cached_device_id
-    if cached_device_id is None:
+    # Check cache first
+    if cached_device_id:
+        # Optional: Add a periodic check here if devices change frequently or if playback fails
+        # For now, assume cached_device_id is valid if present
+        pass # Keep using cached_device_id
+    else: # No cached ID, or it was cleared
         try:
+            if not spotify_instance:
+                print("Spotify instance not available to fetch devices.")
+                return None
             devices = spotify_instance.devices()
             if not devices or not devices['devices']:
                 print("No Spotify devices found. Please open Spotify on your device.")
+                cached_device_id = None # Ensure it's None if no devices
                 return None
-            cached_device_id = devices['devices'][0]['id']
-            print("Successfully connected to Spotify device!")
+            # Prefer active device, otherwise take the first one
+            active_device = next((d for d in devices['devices'] if d.get('is_active')), None)
+            if active_device:
+                cached_device_id = active_device['id']
+                print(f"Using active Spotify device: {active_device['name']}")
+            else:
+                cached_device_id = devices['devices'][0]['id']
+                print(f"No active device. Using first available: {devices['devices'][0]['name']}")
         except Exception as e:
             print(f"Error getting Spotify device: {e}")
+            cached_device_id = None # Ensure it's None on error
             return None
     return cached_device_id
 
@@ -73,7 +88,8 @@ def authenticate_spotify():
 def show_login_screen(screen, font):
     global sp
     login_button = pygame.Rect(width//2 - 150, height//2 - 25, 300, 50)
-    login_text = "Login with Spotify"
+    login_text_default = "Login with Spotify"
+    current_login_text = login_text_default
     error_message = None
     error_timer = 0
     is_authenticating = False
@@ -88,19 +104,29 @@ def show_login_screen(screen, font):
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if login_button.collidepoint(event.pos) and not is_authenticating:
                     is_authenticating = True
+                    current_login_text = "Logging in..."
+                    # Force screen update for "Logging in..." message before blocking auth call
+                    # (This part might be tricky without async here, auth can block)
+                    pygame.draw.rect(screen, DARK_BLUE, login_button)
+                    text_surf_auth = font.render(current_login_text, True, BLACK)
+                    text_rect_auth = text_surf_auth.get_rect(center=login_button.center)
+                    screen.blit(text_surf_auth, text_rect_auth)
+                    pygame.display.flip()
+
                     try:
                         sp = authenticate_spotify()
                         if sp:
                             return sp
                         else:
-                            error_message = "Login failed. Please ensure Spotify is open and try again."
+                            error_message = "Login failed. Ensure Spotify is open & Premium."
                             error_timer = time.time()
                     except Exception as e:
-                        error_message = "Login failed. Please try again."
+                        error_message = "Login error. Try again."
                         error_timer = time.time()
-                        print(f"Login error: {e}")
+                        print(f"Login error during auth: {e}")
                     finally:
                         is_authenticating = False
+                        current_login_text = login_text_default # Reset button text
 
         screen.fill(DARK_GREY)
         
@@ -111,112 +137,186 @@ def show_login_screen(screen, font):
         # Draw login button
         if is_authenticating:
             button_color = DARK_BLUE
-            login_text = "Logging in..."
         else:
             button_color = LIGHT_BLUE
-            login_text = "Login with Spotify"
             
         pygame.draw.rect(screen, button_color, login_button)
-        text_surf = font.render(login_text, True, BLACK)
+        text_surf = font.render(current_login_text, True, BLACK)
         text_rect = text_surf.get_rect(center=login_button.center)
         screen.blit(text_surf, text_rect)
         
         # Draw instructions
         instructions = [
             "Click to login with Spotify",
-            "Spotify Browser will open for log-in",
-            "Return to this window after log-in confirmed",
-            "NOTE: you need a Spotify Premium account to play music"
+            "Browser will open for log-in",
+            "Return here after log-in",
+            "NOTE: Spotify Premium needed"
         ]
         y_offset = height//2 + 50
+        small_font = pygame.font.SysFont("Press Start 2P", 20) # Smaller font for instructions
         for instruction in instructions:
-            text = font.render(instruction, True, WHITE)
+            text = small_font.render(instruction, True, WHITE)
             screen.blit(text, (width//2 - text.get_width()//2, y_offset))
-            y_offset += 60
+            y_offset += 40 # Adjusted spacing
             
-        # Draw error message if any
-        if error_message and time.time() - error_timer < 3:
-            error_surf = font.render(error_message, True, (255, 0, 0))
-            screen.blit(error_surf, (width//2 - error_surf.get_width()//2, height//2 + 150))
+        if error_message and time.time() - error_timer < 5: # Show error longer
+            error_surf = small_font.render(error_message, True, RED)
+            screen.blit(error_surf, (width//2 - error_surf.get_width()//2, height - 50)) # Error at bottom
 
         pygame.display.flip()
         clock.tick(30)
 
 def play_track_sync(track_uri, position_ms):
-    """Synchronous function to play a track"""
-    global sp, cached_device_id, executor
-    try:
-        if not cached_device_id:
-            print("No cached device ID for playback. Attempting to find one.")
-            if not get_spotify_device(sp):
-                print("Still no active Spotify device found for playback.")
-                return False
+    """Synchronous function to play a track. Returns success_bool."""
+    global sp, cached_device_id
+    sync_start_time = time.perf_counter()
+    print(f"[{sync_start_time:.4f}] play_track_sync: Called for {track_uri}")
 
+    if not sp:
+        print(f"[{time.perf_counter():.4f}] play_track_sync: Spotify not initialized.")
+        return False
+    
+    device_fetch_start = time.perf_counter()
+    device_to_use = get_spotify_device(sp) 
+    device_fetch_end = time.perf_counter()
+    print(f"[{device_fetch_end:.4f}] play_track_sync: get_spotify_device took {device_fetch_end - device_fetch_start:.4f}s. Device: {device_to_use}")
+
+    if not device_to_use:
+        print(f"[{time.perf_counter():.4f}] play_track_sync: No Spotify device available.")
+        return False
+
+    try:
+        print(f"[{time.perf_counter():.4f}] play_track_sync: Attempting sp.start_playback for {track_uri}...")
+        playback_call_start = time.perf_counter()
         sp.start_playback(
-            device_id=cached_device_id,
+            device_id=device_to_use,
             uris=[track_uri],
             position_ms=position_ms
         )
+        playback_call_end = time.perf_counter()
+        print(f"[{playback_call_end:.4f}] play_track_sync: sp.start_playback for {track_uri} took {playback_call_end - playback_call_start:.4f}s. Success.")
         return True
     except spotipy.exceptions.SpotifyException as e:
-        print(f"Spotify API error during playback: {e.status_code} - {e.msg}")
-        if e.status_code == 403 or e.status_code == 404:
-            print(f"Playback issue ({e.status_code}). Clearing cached device ID. Ensure Spotify is active.")
-            cached_device_id = None
+        print(f"[{time.perf_counter():.4f}] play_track_sync: Spotify API error: {e.status_code} - {e.msg} for URI {track_uri}")
+        if e.status_code == 403 or e.status_code == 404: 
+            cached_device_id = None 
+            print(f"[{time.perf_counter():.4f}] play_track_sync: Cleared cached_device_id.")
         return False
     except Exception as e:
-        print(f"Generic error in play_track_sync: {e}")
+        print(f"[{time.perf_counter():.4f}] play_track_sync: Generic error for URI {track_uri}: {e}")
         return False
+    finally:
+        sync_end_time = time.perf_counter()
+        print(f"[{sync_end_time:.4f}] play_track_sync: Finished for {track_uri}. Total time: {sync_end_time - sync_start_time:.4f}s")
 
-def play_specific_track(track_uri):
-    """Plays a specific track URI from the beginning."""
-    global sp, cached_device_id, executor
-    if not sp or not cached_device_id:
-        if not sp or not get_spotify_device(sp):
-            print("Spotify not ready or no device for specific track.")
-            return False
+def play_uri_with_details(track_uri, position_ms=0):
+    """Plays a specific URI and returns success, name, artist. Contains blocking calls."""
+    global sp
+    if not sp:
+        return False, "N/A", "Spotify Not Init"
+    
+    track_name = "Error fetching name"
+    track_artist = "Error fetching artist"
     try:
-        future = executor.submit(play_track_sync, track_uri, 0)
-        return True
+        track_info = sp.track(track_uri)
+        track_name = track_info.get('name', 'Unknown Track')
+        if track_info.get('artists') and len(track_info['artists']) > 0:
+            track_artist = track_info['artists'][0].get('name', 'Unknown Artist')
     except Exception as e:
-        print(f"Error submitting specific track {track_uri} for playback: {e}")
-        return False
+        print(f"Error fetching track details for {track_uri}: {e}")
 
-def play_random_track_from_album(album_uri):
-    """Plays a random track from the album and returns if it was the Easter Egg track."""
-    global sp, executor
+    played_successfully = play_track_sync(track_uri, position_ms)
+    
+    return played_successfully, track_name, track_artist
+
+async def play_random_track_from_album(album_uri, song_info_updater_callback):
+    """Plays a random track asynchronously and calls a callback with track details."""
+    global sp
+    async_overall_start_time = time.perf_counter()
+    print(f"[{async_overall_start_time:.4f}] play_random_track_from_album (callback ver): Called for {album_uri}")
+
+    if not sp:
+        print(f"[{time.perf_counter():.4f}] play_random_track_from_album: Spotify not initialized.")
+        # Call updater with error state if desired, or let caller handle no-op
+        # song_info_updater_callback("N/A", "Spotify Not Init", False)
+        return # Or return False to indicate immediate failure to initiate
+    
+    track_name, track_artist, is_easter_egg_track_selected, played_successfully = "Error", "Unknown", False, False
+
     try:
-        results = sp.album_tracks(album_uri, limit=50)
-        tracks = results['items']
+        print(f"[{time.perf_counter():.4f}] play_random_track_from_album: Calling sp.album_tracks in thread for {album_uri}...")
+        album_tracks_thread_start = time.perf_counter()
+        # sp.album_tracks is blocking
+        results = await asyncio.to_thread(sp.album_tracks, album_uri, limit=50) 
+        album_tracks_thread_end = time.perf_counter()
+        print(f"[{album_tracks_thread_end:.4f}] play_random_track_from_album: sp.album_tracks in thread took {album_tracks_thread_end - album_tracks_thread_start:.4f}s.")
+
+        tracks = results.get('items')
         if not tracks:
-            return False, False
+            print(f"[{time.perf_counter():.4f}] play_random_track_from_album: No tracks found in album {album_uri}.")
+            track_name, track_artist = "No Tracks In Album", "N/A"
+            # Call updater immediately with this info, playback won't happen
+            song_info_updater_callback(track_name, track_artist, False)
+            return 
+        
         track = random.choice(tracks)
-        track_uri = track['uri']
-        position_ms = random.randint(0, max(0, track['duration_ms'] - 30000))
+        chosen_track_uri = track['uri']
+        track_name = track.get('name', 'Unknown Track')
+        track_artist_list = track.get('artists')
+        if track_artist_list and len(track_artist_list) > 0:
+            track_artist = track_artist_list[0].get('name', 'Unknown Artist')
+        else:
+            track_artist = "Unknown Artist"
         
-        played_successfully = play_track_sync(track_uri, position_ms)
+        position_ms = random.randint(0, max(0, track.get('duration_ms', 0) - 30000))
+        is_easter_egg_track_selected = (chosen_track_uri == EASTER_EGG_TRACK_URI)
         
-        is_easter_egg_track_selected = (track_uri == EASTER_EGG_TRACK_URI)
-        if played_successfully and is_easter_egg_track_selected:
-            print(f"Randomly selected track is the Easter Egg track: {track_uri}")
-            
-        return played_successfully, is_easter_egg_track_selected
+        print(f"[{time.perf_counter():.4f}] play_random_track_from_album: Chosen: {track_name}. Calling play_track_sync in thread...")
+        play_sync_thread_start = time.perf_counter()
+        # play_track_sync is blocking
+        played_successfully = await asyncio.to_thread(play_track_sync, chosen_track_uri, position_ms) 
+        play_sync_thread_end = time.perf_counter()
+        print(f"[{play_sync_thread_end:.4f}] play_random_track_from_album: play_track_sync in thread took {play_sync_thread_end - play_sync_thread_start:.4f}s. Result: {played_successfully}")
+        
+        if played_successfully:
+            print(f"[{time.perf_counter():.4f}] play_random_track_from_album: Playback successful for {track_name}.")
+            if is_easter_egg_track_selected:
+                print(f"[{time.perf_counter():.4f}] play_random_track_from_album: Randomly selected track is Easter Egg: {track_name}")
+            # Call the updater with the successful track's info
+            song_info_updater_callback(track_name, track_artist, is_easter_egg_track_selected)
+        else:
+            print(f"[{time.perf_counter():.4f}] play_random_track_from_album: Playback FAILED for {track_name}.")
+            # Call updater with info about the track that failed to play
+            song_info_updater_callback(track_name, f"(Failed: {track_artist})", False) # Mark as failed in artist string
+
     except Exception as e:
-        print(f"Error playing random track from album {album_uri}: {e}")
-        return False, False
+        print(f"[{time.perf_counter():.4f}] play_random_track_from_album: Error for {album_uri}: {e}")
+        # On general error, call updater with error state
+        song_info_updater_callback("Error During Playback", str(e), False)
+    finally:
+        async_overall_end_time = time.perf_counter()
+        print(f"[{async_overall_end_time:.4f}] play_random_track_from_album (callback ver): Finished for {album_uri}. Total async function time: {async_overall_end_time - async_overall_start_time:.4f}s")
 
 def cleanup():
+    global cached_device_id
+    print("Running cleanup...")
     try:
         if sp:
             try:
                 print("Attempting to pause playback on cleanup...")
-                sp.pause_playback()
+                current_playback = sp.current_playback()
+                if current_playback and current_playback.get('is_playing'):
+                    sp.pause_playback()
+                    print("Playback paused.")
+                else:
+                    print("No active playback to pause or already paused.")
             except Exception as e:
                 print(f"Error pausing on cleanup: {e}")
-        if executor:
-            executor.shutdown(wait=False)
-    except:
-        pass
+    except Exception as e:
+        print(f"Error during sp check in cleanup: {e}")
+    finally:
+        cached_device_id = None # Clear cached device ID on cleanup
+        print("Cleanup finished. Cached device ID cleared.")
 
 def search_album(query):
     global sp
