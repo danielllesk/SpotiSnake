@@ -1,5 +1,4 @@
 from ui import start_menu
-import pygame
 import asyncio # Import asyncio
 from spotipy_handling import cleanup # Import cleanup for finalization
 

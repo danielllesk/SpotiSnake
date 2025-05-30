@@ -22,8 +22,7 @@ SCOPES = [
 # Global variables
 sp = None
 cached_device_id = None
-
-EASTER_EGG_TRACK_URI = "spotify:track:4UQMOPSUVJVicIQzjAcRRZ"
+USER_QUIT_ALBUM_SEARCH = "USER_QUIT_ALBUM_SEARCH"
 
 def get_spotify_device(spotify_instance):
     global cached_device_id
@@ -94,7 +93,6 @@ def show_login_screen(screen, font):
     error_timer = 0
     is_authenticating = False
     
-    # Create a larger font for the title
     title_font = pygame.font.SysFont("Press Start 2P", 55)
     
     while True:
@@ -105,36 +103,35 @@ def show_login_screen(screen, font):
                 if login_button.collidepoint(event.pos) and not is_authenticating:
                     is_authenticating = True
                     current_login_text = "Logging in..."
-                    # Force screen update for "Logging in..." message before blocking auth call
-                    # (This part might be tricky without async here, auth can block)
                     pygame.draw.rect(screen, DARK_BLUE, login_button)
                     text_surf_auth = font.render(current_login_text, True, BLACK)
                     text_rect_auth = text_surf_auth.get_rect(center=login_button.center)
                     screen.blit(text_surf_auth, text_rect_auth)
                     pygame.display.flip()
 
+                    temp_sp_instance = None
                     try:
-                        sp = authenticate_spotify()
-                        if sp:
-                            return sp
+                        temp_sp_instance = authenticate_spotify()
+                        if temp_sp_instance:
+                            sp = temp_sp_instance
+                            print("Login screen: Authentication successful.")
+                            return sp 
                         else:
                             error_message = "Login failed. Ensure Spotify is open & Premium."
                             error_timer = time.time()
-                    except Exception as e:
+                    except Exception as e_auth:
                         error_message = "Login error. Try again."
                         error_timer = time.time()
-                        print(f"Login error during auth: {e}")
+                        print(f"Login error during authentication process: {e_auth}")
                     finally:
                         is_authenticating = False
-                        current_login_text = login_text_default # Reset button text
+                        current_login_text = login_text_default
 
         screen.fill(DARK_GREY)
         
-        # Draw title with larger font
         title = title_font.render("Welcome to SpotiSnake!", True, LIGHT_BLUE)
         screen.blit(title, (width//2 - title.get_width()//2, height//4))
         
-        # Draw login button
         if is_authenticating:
             button_color = DARK_BLUE
         else:
@@ -145,7 +142,6 @@ def show_login_screen(screen, font):
         text_rect = text_surf.get_rect(center=login_button.center)
         screen.blit(text_surf, text_rect)
         
-        # Draw instructions
         instructions = [
             "Click to login with Spotify",
             "Browser will open for log-in",
@@ -153,15 +149,15 @@ def show_login_screen(screen, font):
             "NOTE: Spotify Premium needed"
         ]
         y_offset = height//2 + 50
-        small_font = pygame.font.SysFont("Press Start 2P", 20) # Smaller font for instructions
+        small_font = pygame.font.SysFont("Press Start 2P", 20)
         for instruction in instructions:
             text = small_font.render(instruction, True, WHITE)
             screen.blit(text, (width//2 - text.get_width()//2, y_offset))
-            y_offset += 40 # Adjusted spacing
+            y_offset += 40
             
-        if error_message and time.time() - error_timer < 5: # Show error longer
+        if error_message and time.time() - error_timer < 5:
             error_surf = small_font.render(error_message, True, RED)
-            screen.blit(error_surf, (width//2 - error_surf.get_width()//2, height - 50)) # Error at bottom
+            screen.blit(error_surf, (width//2 - error_surf.get_width()//2, height - 50))
 
         pygame.display.flip()
         clock.tick(30)
@@ -364,14 +360,46 @@ def download_and_resize_album_cover(url, target_width, target_height):
         print(f"Error downloading or resizing album art: {e}")
         return None
 
-def get_album_search_input(screen, font):
+async def get_album_search_input(screen, font):
     global sp
     if not sp:
-        print("No Spotify instance available. Please log in first.")
+        print("Album search: Spotify (sp) not initialized. Cannot play track or search.")
         return None
-        
-    input_box = pygame.Rect(100, 100, 400, 50)
-    results_area = pygame.Rect(100, 160, 400, 300)
+
+    SEARCH_TRACK_URI = "spotify:track:2XmGbXuxrmfp3inzEuQhE1"
+    SEARCH_TRACK_START_MS = 3000
+    print(f"Album search: Attempting to play track {SEARCH_TRACK_URI} for this screen.")
+
+    async def play_search_screen_track_task():
+        active_device_id = None
+        try:
+            active_device_id = await asyncio.to_thread(get_spotify_device, sp)
+        except Exception as e_dev:
+            print(f"Album search: Error getting device for screen track: {e_dev}")
+            return
+        if active_device_id:
+            try:
+                print(f"Album search: Playing {SEARCH_TRACK_URI} on device {active_device_id}")
+                await asyncio.to_thread(
+                    sp.start_playback,
+                    device_id=active_device_id,
+                    uris=[SEARCH_TRACK_URI],
+                    position_ms=SEARCH_TRACK_START_MS
+                )
+                print(f"Album search: Playback command for {SEARCH_TRACK_URI} sent.")
+            except Exception as e_play:
+                print(f"Album search: Error playing screen track {SEARCH_TRACK_URI}: {e_play}")
+        else:
+            print(f"Album search: No active device found for screen track {SEARCH_TRACK_URI}.")
+
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(play_search_screen_track_task())
+    except RuntimeError:
+        print("Album search: No running asyncio loop. Cannot create task for screen track playback.")
+
+    input_box = pygame.Rect(width // 2 - 200, 100, 400, 50)
+    results_area = pygame.Rect(width // 2 - 200, 160, 400, 300)
     color_inactive = DARK_BLUE
     color_active = LIGHT_BLUE
     color = color_inactive
@@ -379,30 +407,17 @@ def get_album_search_input(screen, font):
     text = ''
     search_results = []
     album_covers = {}
+    quit_button_rect_local = pygame.Rect(20, height - 70, 250, 50)
+    quit_button_font = pygame.font.SysFont("Press Start 2P", 20)
 
-    def draw_button(text_content, x, y, w, h, inactive_color, active_color): # Renamed text to text_content to avoid conflict
-        mouse = pygame.mouse.get_pos()
-        click = pygame.mouse.get_pressed()
-        button_font = pygame.font.SysFont("Press Start 2P", 25)
-        if x < mouse[0] < x + w and y < mouse[1] < y + h:
-            pygame.draw.rect(screen, active_color, (x, y, w, h))
-            if click[0] == 1:
-                return True
-        else:
-            pygame.draw.rect(screen, inactive_color, (x, y, w, h))
-        text_surf = button_font.render(text_content, True, BLACK)
-        text_rect = text_surf.get_rect(center=(x + w // 2, y + h // 2))
-        screen.blit(text_surf, text_rect)
-        return False
-
-    def draw_search_results():
+    def draw_search_results_local():
         if search_results:
             pygame.draw.rect(screen, WHITE, results_area)
             y_offset = results_area.y + 10
-            for album in search_results:
+            for album_idx, album in enumerate(search_results):
                 result_rect = pygame.Rect(results_area.x + 5, y_offset, results_area.width - 10, 70)
                 if result_rect.collidepoint(pygame.mouse.get_pos()):
-                    pygame.draw.rect(screen, LIGHT_BLUE, result_rect)
+                    pygame.draw.rect(screen, LIGHT_GREY, result_rect)
                 else:
                     pygame.draw.rect(screen, WHITE, result_rect)
                 pygame.draw.rect(screen, DARK_BLUE, result_rect, 1)
@@ -413,83 +428,69 @@ def get_album_search_input(screen, font):
                     text_start_x = result_rect.x + 70
                 else:
                     text_start_x = result_rect.x + 10
-                name_font = pygame.font.SysFont('times new roman', 20)
+                name_font = pygame.font.SysFont('corbel', 18)
                 name_surf = name_font.render(album['name'], True, BLACK)
                 screen.blit(name_surf, (text_start_x, result_rect.y + 10))
-                artist_font = pygame.font.SysFont('times new roman', 20)
-                artist_surf = artist_font.render(album['artist'], True, DARK_BLUE)
-                screen.blit(artist_surf, (text_start_x, result_rect.y + 40))
+                artist_font = pygame.font.SysFont('corbel', 16)
+                artist_surf = artist_font.render(album['artist'], True, DARK_GREY)
+                screen.blit(artist_surf, (text_start_x, result_rect.y + 35))
                 y_offset += 80
+        elif text:
+            no_results_surf = font.render("No results. Press Enter to search.", True, WHITE)
+            screen.blit(no_results_surf, (results_area.x + 10, results_area.y + 10))
         else:
-            no_results_surf = font.render("No results found, click enter to search", True, WHITE)
+            no_results_surf = font.render("Type to search. Press Enter.", True, WHITE)
             screen.blit(no_results_surf, (results_area.x + 10, results_area.y + 10))
 
+    search_input_clock = pygame.time.Clock()
+
     while True:
+        mouse_pos = pygame.mouse.get_pos()
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                try:
-                    if sp:
-                        sp.pause_playback()
-                except:
-                    pass
-                pygame.quit()
-                return None # Important to return None to signal quit
+                return USER_QUIT_ALBUM_SEARCH
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if input_box.collidepoint(event.pos):
                     active = not active
-                    color = color_active if active else color_inactive
-                elif search_results:
+                else:
+                    active = False
+                color = color_active if active else color_inactive
+                if quit_button_rect_local.collidepoint(mouse_pos):
+                    print("User clicked quit on album search screen.")
+                    return USER_QUIT_ALBUM_SEARCH
+                if search_results:
                     y_offset = results_area.y + 10
                     for album in search_results:
                         result_rect = pygame.Rect(results_area.x + 5, y_offset, results_area.width - 10, 70)
                         if result_rect.collidepoint(event.pos):
                             return album
                         y_offset += 80
-                else:
-                    active = False # Deactivate input box if clicked outside
-                    color = color_inactive
             if event.type == pygame.KEYDOWN:
                 if active:
                     if event.key == pygame.K_RETURN:
                         if text:
-                            print(f"Searching for: {text}")
                             search_results = search_album(text)
-                            album_covers.clear() # Clear old covers
+                            album_covers.clear()
                     elif event.key == pygame.K_BACKSPACE:
                         text = text[:-1]
-                        if not text: # Clear results if text is empty
+                        if not text:
                             search_results = []
                             album_covers.clear()
                     else:
                         text += event.unicode
-
         screen.fill((30, 30, 30))
         label_font = pygame.font.SysFont("Press Start 2P", 25)
         label = label_font.render("Search for an album:", True, WHITE)
-        screen.blit(label, (input_box.x, input_box.y - 30))
+        screen.blit(label, (input_box.x, input_box.y - 40))
         txt_surface = font.render(text, True, color)
-        # Adjust input_box width dynamically based on text, but with a minimum
-        current_width = max(400, txt_surface.get_width() + 10)
-        input_box.w = current_width
         screen.blit(txt_surface, (input_box.x + 5, input_box.y + 5))
         pygame.draw.rect(screen, color, input_box, 2)
-        draw_search_results()
-        
-        # Draw quit button at bottom left
-        # Ensure button_width and button_height are defined or use constants
-        # For example:
-        button_width_val = 100 
-        button_height_val = 50
-        quit_button_x = 20
-        quit_button_y = height - button_height_val - 20
-        if draw_button("Quit", quit_button_x, quit_button_y, button_width_val, button_height_val, LIGHT_BLUE, DARK_BLUE):
-            try:
-                if sp:
-                    sp.pause_playback()
-            except:
-                pass
-            pygame.quit()
-            return None # Important to return None to signal quit
-            
+        draw_search_results_local()
+        pygame.draw.rect(screen, LIGHT_BLUE, quit_button_rect_local)
+        quit_text_surf = quit_button_font.render("QUIT", True, BLACK)
+        quit_text_rect = quit_text_surf.get_rect(center=quit_button_rect_local.center)
+        screen.blit(quit_text_surf, quit_text_rect)
         pygame.display.flip()
-        clock.tick(30)
+        
+        await asyncio.sleep(0.001)
+        search_input_clock.tick(30)
