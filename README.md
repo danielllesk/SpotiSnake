@@ -7,11 +7,11 @@ Eat album cover "fruit" tiles, piece together a full album, and listen to real-t
 
 ## 🐍 How It Works
 
-- Choose your **Spotify album** at the start of the game.
+- Choose a **Spotify album** at the start of the game, preferrable something with cool album art.
 - Play as a snake that eats randomly scattered pieces of the album cover.
 - As you eat, each tile gets "locked in" onto the background, slowly revealing the full album.
-- A track from the album plays in the background. When it changes, the game updates accordingly.
-- If a secret **easter egg track** plays, you’ll get a special message 👀
+- After 5 blocks, a new random track from the album plays in the background. When it changes, the game updates accordingly.
+- If a secret **easter egg track** plays, you’ll get a special message. Message me if you get it👀
 - Want to challenge friends? **Send me the albums you ate!**
 
 ---
@@ -61,8 +61,8 @@ Finished an album? Snaked your way through some obscure indie record?
 - Web deployment, and code cleanup as of right now
 
 ## 🧠 Future Ideas
-
 - Multiplayer snake battle mode (battle of the albums)
 - Album progress saving and leaderboard
 - Integration with lyrics or track popularity stats
 - Visual filters for dark album covers
+- Standalone app/website where users create accounts, connect with friends, see what albums they are eating
