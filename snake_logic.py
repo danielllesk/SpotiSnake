@@ -2,22 +2,18 @@ import pygame
 import time
 import random
 import asyncio
+import traceback
 from spotipy_handling import (
     get_album_search_input, download_and_resize_album_cover, 
-    play_random_track_from_album, play_uri_with_details,
-    USER_QUIT_ALBUM_SEARCH
+    play_random_track_from_album, play_uri_with_details
 )
-from shared_constants import *
-from ui import start_menu
+from shared_constants import * 
+from ui import start_menu, quit_game_async
 
 pygame.init()
 
-OUTLINE_COLOR = BLACK
-OUTLINE_THICKNESS = 2 # You can adjust this for a thicker/thinner outline
-
 def render_text_with_outline(text_str, font, main_color, outline_color, thickness):
-    # Render the outline text (multiple times for a thicker effect if desired)
-    # For a simple outline, rendering at 4 diagonal and 4 cardinal points is common.
+    """Renders text with a specified outline color and thickness."""
     outline_surfaces = []
     positions = [
         (-thickness, -thickness), ( thickness, -thickness), (-thickness,  thickness), ( thickness,  thickness),
@@ -30,25 +26,21 @@ def render_text_with_outline(text_str, font, main_color, outline_color, thicknes
     # Render the main text
     text_surface_main = font.render(text_str, True, main_color)
     
-    # Determine the size of the final surface
-    # Find max width and height considering the main text and all outline parts
-    # Initial width/height is from the main text
     final_width = text_surface_main.get_width() + 2 * thickness
     final_height = text_surface_main.get_height() + 2 * thickness
 
     # Create a new surface with transparency for the combined text and outline
     final_surface = pygame.Surface((final_width, final_height), pygame.SRCALPHA)
 
-    # Blit outline surfaces first, offset by thickness to center them
     for surf, (dx, dy) in outline_surfaces:
         final_surface.blit(surf, (thickness + dx, thickness + dy))
     
-    # Blit the main text on top, offset by thickness
     final_surface.blit(text_surface_main, (thickness, thickness))
     
     return final_surface
 
 def cut_image_into_pieces(image_surface, piece_width, piece_height):
+    """Divides a Pygame surface into a grid of smaller pieces (subsurfaces)."""
     pieces = {}
     for row in range(0, image_surface.get_height(), piece_height):
         for col in range(0, image_surface.get_width(), piece_width):
@@ -59,18 +51,38 @@ def cut_image_into_pieces(image_surface, piece_width, piece_height):
     return pieces  # {(x, y): surface, ...}
 
 async def start_game(screen):
+    """Initializes and runs the main SpotiSnake game loop, including setup and event handling."""
     pygame.display.set_caption('SpotiSnake')
 
-    # The logic to play a specific track FOR the search screen (i.e., Zatar)
-    # has been moved into the get_album_search_input function in spotipy_handling.py.
-    # Thus, we no longer initiate that specific playback here.
+    album_result = None
+    test_font_object = None
 
-    album_result = await get_album_search_input(screen, pygame.font.SysFont('corbel', 20))
-    
-    if album_result == USER_QUIT_ALBUM_SEARCH:
+    try:
+        test_font_object = pygame.font.SysFont('corbel', 20)
+    except Exception:
+        traceback.print_exc()
+        await asyncio.sleep(1)
+        try:
+            fallback_font = pygame.font.SysFont('sans', 20) 
+            album_result = await get_album_search_input(screen, fallback_font)
+        except Exception:
+            traceback.print_exc()
+            await start_menu()
+            return
+    else:
+        try:
+            album_result = await get_album_search_input(screen, test_font_object)
+        except Exception:
+            traceback.print_exc()
+            await start_menu()
+            return
+
+    if album_result == USER_ABORT_GAME_FROM_SEARCH:
+        await quit_game_async()
         return
+    
     if not album_result:
-        await start_menu()
+        await quit_game_async()
         return
 
     album_cover_surface = download_and_resize_album_cover(album_result['image_url'], width, height)
@@ -78,13 +90,6 @@ async def start_game(screen):
         await start_menu()
         return
 
-    # Game state variables for current song and Easter egg
-    # These will be updated by the callback
-    # Need to be careful with scope if updater is defined outside start_game
-    # For simplicity, let's make them accessible within start_game context for now
-    # This implies the updater function will be defined within start_game or be a method of a class that holds this state.
-    
-    # Using a dictionary for shared state that can be modified by the callback
     song_display_state = {
         "name": "Initializing...",
         "artist": "",
@@ -92,14 +97,12 @@ async def start_game(screen):
     }
 
     def update_song_display_from_callback(track_name, track_artist, is_ee_primed):
-        nonlocal song_display_state # Or self.song_display_state if in a class
+        """Callback function to update the displayed song name, artist, and Easter egg status."""
+        nonlocal song_display_state
         song_display_state["name"] = track_name
         song_display_state["artist"] = track_artist
         song_display_state["easter_egg_primed"] = is_ee_primed
-        # No direct update to current_track_name/artist here if they are local to the loop,
-        # show_song will use song_display_state values.
 
-    # Initial song play
     song_display_state["name"] = "Loading first game song..."
     song_display_state["artist"] = ""
     asyncio.create_task(play_random_track_from_album(album_result['uri'], update_song_display_from_callback))
@@ -115,6 +118,7 @@ async def start_game(screen):
     score = 0
 
     def random_fruit_pos():
+        """Generates a valid random position for a new fruit, avoiding snake body and revealed areas."""
         while True:
             pos = [random.randrange(0, width // GRID_SIZE) * GRID_SIZE,
                    random.randrange(0, height // GRID_SIZE) * GRID_SIZE]
@@ -242,11 +246,13 @@ async def start_game(screen):
         await asyncio.sleep(1/SNAKE_SPEED)
 
 def show_score(screen, score):
+    """Displays the current game score on the screen with an outline."""
     font = pygame.font.SysFont('Press Start 2P', 20) 
     score_surface = render_text_with_outline(f'Score: {score}', font, WHITE, OUTLINE_COLOR, OUTLINE_THICKNESS)
     screen.blit(score_surface, (10, 10))
 
 def show_song(screen, track_name, track_artist):
+    """Displays the currently playing song's name and artist on the screen."""
     if track_name == "N/A":
         display_text = "Song: Loading..."
     elif track_name == "No Tracks" or track_name == "Error":
@@ -260,26 +266,17 @@ def show_song(screen, track_name, track_artist):
     screen.blit(song_surface, (10, song_display_y))
 
 async def winning_screen(screen, score, album_pieces):
+    """Displays the winning screen, plays a victory song, and counts down to menu."""
     start_time = time.monotonic()
     WINNING_SCREEN_DURATION = 8
     COUNTDOWN_START_TIME = 3
     
-    WINNING_SONG_START_MS = 33000 # New start time for the winning song
-
-    # Play the winning track using play_uri_with_details, with specified start time
-    # play_uri_with_details is synchronous, so run in a thread
-    played_win_successfully, win_song_name, win_song_artist = await asyncio.to_thread(
+    _, _, _ = await asyncio.to_thread(
         play_uri_with_details, 
-        WINNING_TRACK_URI, # This should be imported from shared_constants.py
-        WINNING_SONG_START_MS
+        WINNING_TRACK_URI, 
+        33000
     )
     
-    if played_win_successfully:
-        pass # print(f"Winning screen track started: {win_song_name} - {win_song_artist} (starting at {WINNING_SONG_START_MS}ms)") # Debug, remove
-    else:
-        pass # print(f"Failed to play winning screen track. Got: {win_song_name} - {win_song_artist}") # Debug, remove
-        # You might want fallback names here too if desired
-
     font = pygame.font.SysFont('Press Start 2P', 45)
     while time.monotonic() - start_time < WINNING_SCREEN_DURATION:
         for event in pygame.event.get():
@@ -316,27 +313,19 @@ async def winning_screen(screen, score, album_pieces):
     await start_menu()
 
 async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, prev_track_artist):
-    # print("Easter Egg Triggered!") # User-facing event, perhaps keep or make part of UI message
-    EASTER_EGG_START_MS = 176000 # New start time
+    """Handles the Easter egg event: plays a special song and shows a message."""
 
-    # Play the Easter Egg track using play_uri_with_details, now with specified start time
-    # play_uri_with_details is synchronous, so run in a thread
-    played_ee_successfully, ee_name, ee_artist = await asyncio.to_thread(
+    played_ee_successfully, _, _ = await asyncio.to_thread(
         play_uri_with_details, 
-        EASTER_EGG_TRACK_URI, # This should be imported from shared_constants.py
-        EASTER_EGG_START_MS
+        EASTER_EGG_TRACK_URI, 
+        176000
     )
     
-    if played_ee_successfully:
-        pass # print(f"Easter Egg track playing: {ee_name} - {ee_artist} (starting at {EASTER_EGG_START_MS}ms)") # Debug, remove
-    else:
-        # print(f"Failed to play Easter Egg track. Error details: {ee_name} - {ee_artist}") # Debug, remove
-        ee_name = "A Mystery Track"
-        ee_artist = "The Easter Bunny"
+    if not played_ee_successfully:
+        pass
 
-    # Brief screen flash or effect with album art
     easter_egg_start_time = time.monotonic()
-    while time.monotonic() - easter_egg_start_time < 3: # Duration of this effect
+    while time.monotonic() - easter_egg_start_time < 3:
         for event in pygame.event.get(): 
             if event.type == pygame.QUIT:
                 try: 
@@ -345,7 +334,7 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
                     pass
                 pygame.quit()
                 return
-        screen.fill(BLACK) # Or some other effect
+        screen.fill(BLACK)
         for row in range(height // ALBUM_GRID_SIZE):
             for col in range(width // ALBUM_GRID_SIZE):
                 pos = (col, row)
@@ -353,22 +342,27 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
                     px, py = pos[0] * ALBUM_GRID_SIZE, pos[1] * ALBUM_GRID_SIZE
                     screen.blit(album_pieces[pos], (px, py))
         pygame.display.flip()
-        await asyncio.sleep(1/30) # Smooth animation for the effect
+        await asyncio.sleep(1/30)
         
     special_message_font = pygame.font.SysFont('Press Start 2P', 30)
     button_font = pygame.font.SysFont('Press Start 2P', 25)
-    message_line1_text = "If you found this your music taste is fire"
-    message_line2a_text = "If you used the code to find this ur a cheater"
+    message_line0_text = "A thank you from the creator:"
+    message_line1_text = "I love your music taste and thank you for playing my game"
+    message_line2a_text = "But if you used the code to find the song you're a cheater"
     message_line2b_text = "PS: I need a job refer me to your friends"
+    msg_surf0 = render_text_with_outline(message_line0_text, special_message_font, LIGHT_BLUE, OUTLINE_COLOR, OUTLINE_THICKNESS)
     msg_surf1 = render_text_with_outline(message_line1_text, special_message_font, LIGHT_BLUE, OUTLINE_COLOR, OUTLINE_THICKNESS)
     msg_surf2a = render_text_with_outline(message_line2a_text, special_message_font, LIGHT_BLUE, OUTLINE_COLOR, OUTLINE_THICKNESS)
     msg_surf2b = render_text_with_outline(message_line2b_text, special_message_font, LIGHT_BLUE, OUTLINE_COLOR, OUTLINE_THICKNESS)
-    msg_rect1 = msg_surf1.get_rect(center=(width // 2, height // 2 - 70))
-    msg_rect2a = msg_surf2a.get_rect(center=(width // 2, height // 2 - 20))
-    msg_rect2b = msg_surf2b.get_rect(center=(width // 2, height // 2 + 30))
+    
+    msg_rect0 = msg_surf0.get_rect(center=(width // 2, height // 2 - 120))
+    msg_rect1 = msg_surf1.get_rect(center=(width // 2, height // 2 - 70)) 
+    msg_rect2a = msg_surf2a.get_rect(center=(width // 2, height // 2 - 20)) 
+    msg_rect2b = msg_surf2b.get_rect(center=(width // 2, height // 2 + 30)) 
+    
     button_text = "Back to Start Menu"
     button_w, button_h = 400, 50
-    button_x, button_y = width // 2 - button_w // 2, height // 2 + 90
+    button_x, button_y = width // 2 - button_w // 2, height // 2 + 80 
     button_rect = pygame.Rect(button_x, button_y, button_w, button_h)
     message_loop = True
     while message_loop:
@@ -385,6 +379,7 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
                     await start_menu()
                     return 
         screen.fill(BLACK) 
+        screen.blit(msg_surf0, msg_rect0)
         screen.blit(msg_surf1, msg_rect1)
         screen.blit(msg_surf2a, msg_rect2a)
         screen.blit(msg_surf2b, msg_rect2b)
@@ -396,6 +391,7 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
         await asyncio.sleep(1/30)
 
 async def game_over(screen, score):
+    """Displays the game over message and returns to the start menu after a delay."""
     game_over_font = pygame.font.SysFont('Press Start 2P', 40)
     msg_surface = render_text_with_outline(f'Game Over! Score: {score}', game_over_font, RED, OUTLINE_COLOR, OUTLINE_THICKNESS)
     rect = msg_surface.get_rect(center=(width // 2, height // 2))

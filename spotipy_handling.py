@@ -7,6 +7,7 @@ from io import BytesIO
 import random
 import time
 import asyncio
+import traceback
 
 clock = pygame.time.Clock()
 pygame.init()
@@ -19,10 +20,10 @@ SCOPES = [
     "user-read-private"
 ]
 
-sp = None
-cached_device_id = None
+USER_ABORT_GAME_FROM_SEARCH = "USER_ABORT_GAME_FROM_SEARCH"
 
 def get_spotify_device(spotify_instance):
+    """Gets a Spotify device ID, using cache or fetching new if needed."""
     global cached_device_id
     # Check cache 
     if cached_device_id:
@@ -35,18 +36,20 @@ def get_spotify_device(spotify_instance):
             if not devices or not devices['devices']:
                 cached_device_id = None # Ensure it's None if no devices
                 return None
-            # Prefer active device, otherwise take the first one
+            # Prefer active device otherwise take the first one
             active_device = next((d for d in devices['devices'] if d.get('is_active')), None)
             if active_device:
                 cached_device_id = active_device['id']
             else:
                 cached_device_id = devices['devices'][0]['id']
-        except Exception:
-            cached_device_id = None # Ensure it's None on error
+        except Exception: 
+            traceback.print_exc()
+            cached_device_id = None
             return None
     return cached_device_id
 
 def authenticate_spotify():
+    """Handles Spotify OAuth authentication and returns a Spotify instance."""
     try:
         # Using the SpotiSnake app credentials
         auth_manager = SpotifyOAuth(
@@ -62,7 +65,6 @@ def authenticate_spotify():
         spotify_instance = spotipy.Spotify(auth_manager=auth_manager)
         
         # Test the connection
-        # user = spotify_instance.current_user() # User info not directly used beyond connection check
         if get_spotify_device(spotify_instance) is None:
             return None
             
@@ -71,6 +73,7 @@ def authenticate_spotify():
         return None
 
 def show_login_screen(screen, font):
+    """Displays the Spotify login screen and handles the authentication flow."""
     global sp
     login_button = pygame.Rect(width//2 - 150, height//2 - 25, 300, 50)
     login_text_default = "Login with Spotify"
@@ -117,7 +120,7 @@ def show_login_screen(screen, font):
         screen.blit(title, (width//2 - title.get_width()//2, height//4))
         
         if is_authenticating:
-            button_color = DARK_BLUE
+            button_color = DARK_BLUE # active and inactive colour
         else:
             button_color = LIGHT_BLUE
             
@@ -147,7 +150,7 @@ def show_login_screen(screen, font):
         clock.tick(30)
 
 def play_track_sync(track_uri, position_ms):
-    """Synchronous function to play a track. Returns success_bool."""
+    """Synchronously plays a specific track on Spotify. Returns True on success."""
     global sp, cached_device_id
     if not sp:
         return False
@@ -167,10 +170,11 @@ def play_track_sync(track_uri, position_ms):
         cached_device_id = None # Clear cache on certain errors like 403/404
         return False
     except Exception:
+        traceback.print_exc() # Keep traceback for actual errors
         return False
 
 def play_uri_with_details(track_uri, position_ms=0):
-    """Plays a specific URI and returns success, name, artist. Contains blocking calls."""
+    """Plays a track and returns (success_bool, track_name, track_artist). Blocking."""
     global sp
     if not sp:
         return False, "N/A", "Spotify Not Init"
@@ -190,7 +194,7 @@ def play_uri_with_details(track_uri, position_ms=0):
     return played_successfully, track_name, track_artist
 
 async def play_random_track_from_album(album_uri, song_info_updater_callback):
-    """Plays a random track asynchronously and calls a callback with track details."""
+    """Asynchronously plays a random track from an album and updates UI via callback."""
     global sp
     if not sp:
         song_info_updater_callback("N/A", "Spotify Not Init", False) # Inform UI
@@ -216,6 +220,7 @@ async def play_random_track_from_album(album_uri, song_info_updater_callback):
             track_artist = "Unknown Artist"
         
         position_ms = random.randint(0, max(0, track.get('duration_ms', 0) - 30000))
+        # Check if the selected track is the Easter egg track
         is_easter_egg_track_selected = (chosen_track_uri == EASTER_EGG_TRACK_URI)
         
         played_successfully = await asyncio.to_thread(play_track_sync, chosen_track_uri, position_ms) 
@@ -228,6 +233,7 @@ async def play_random_track_from_album(album_uri, song_info_updater_callback):
         song_info_updater_callback("Error During Playback", "Album Track Error", False)
 
 def cleanup():
+    """Pauses Spotify playback and clears the cached device ID, if applicable."""
     global cached_device_id
     try:
         if sp:
@@ -243,6 +249,7 @@ def cleanup():
         cached_device_id = None # Clear cached device ID on cleanup
 
 def search_album(query):
+    """Searches Spotify for albums matching the query. Returns a list of album details."""
     global sp
     if not sp:
         return []
@@ -272,6 +279,7 @@ def search_album(query):
         return []
 
 def download_and_resize_album_cover(url, target_width, target_height):
+    """Downloads an image from a URL and resizes it to target dimensions."""
     try:
         response = requests.get(url)
         response.raise_for_status()
@@ -283,54 +291,48 @@ def download_and_resize_album_cover(url, target_width, target_height):
         return None
 
 async def get_album_search_input(screen, font):
+    """Displays album search UI, handles input, plays background track, returns selected album or sentinel."""
     global sp
     if not sp:
         return None
-
-    SEARCH_TRACK_URI = "spotify:track:2XmGbXuxrmfp3inzEuQhE1"
-    SEARCH_TRACK_START_MS = 3000
-    async def play_search_screen_track_task():
-        active_device_id = None
+    
+    async def music_task_wrapper():
+        """Wraps the music playback task to catch and report errors from its thread."""
         try:
-            active_device_id = await asyncio.to_thread(get_spotify_device, sp)
+            success = await asyncio.to_thread(play_track_sync, SEARCH_TRACK_URI, 3000)
         except Exception:
-            return
-        if active_device_id:
-            try:
-                await asyncio.to_thread(
-                    sp.start_playback,
-                    device_id=active_device_id,
-                    uris=[SEARCH_TRACK_URI],
-                    position_ms=SEARCH_TRACK_START_MS
-                )
-            except Exception:
-                pass 
-        else:
-            pass # No device, no print
+            traceback.print_exc()
 
     try:
         loop = asyncio.get_running_loop()
-        loop.create_task(play_search_screen_track_task())
+        loop.create_task(music_task_wrapper()) # Use the wrapper
     except RuntimeError:
-        pass
+        pass # Occurs if no event loop is running, though get_album_search_input is async
+    except Exception:
+        traceback.print_exc()
 
-    input_box = pygame.Rect(width // 2 - 200, 100, 400, 50)
-    results_area = pygame.Rect(width // 2 - 200, 160, 400, 300)
-    color_inactive = DARK_BLUE
-    color_active = LIGHT_BLUE
-    color = color_inactive
-    active = False
-    text = ''
-    search_results = []
-    album_covers = {}
-    quit_button_rect_local = pygame.Rect(20, height - 70, 250, 50)
-    quit_button_font = pygame.font.SysFont("Press Start 2P", 20)
+    try:
+        input_box = pygame.Rect(width // 2 - 200, 100, 400, 50)
+        results_area = pygame.Rect(width // 2 - 200, 160, 400, 300)
+        color_inactive = DARK_BLUE
+        color_active = LIGHT_BLUE
+        color = color_inactive
+        active = False
+        text = ''
+        search_results = []
+        album_covers = {}
+        quit_button_font = pygame.font.SysFont("Press Start 2P", 20)
+        quit_button_rect_local = pygame.Rect(20, height - 70, 250, 50)
+    except Exception:
+        traceback.print_exc()
+        return USER_ABORT_GAME_FROM_SEARCH
 
     def draw_search_results_local():
+        """Draws the album search results list onto the screen."""
         if search_results:
             pygame.draw.rect(screen, WHITE, results_area)
             y_offset = results_area.y + 10
-            for album_idx, album in enumerate(search_results):
+            for album in search_results:
                 result_rect = pygame.Rect(results_area.x + 5, y_offset, results_area.width - 10, 70)
                 if result_rect.collidepoint(pygame.mouse.get_pos()):
                     pygame.draw.rect(screen, LIGHT_GREY, result_rect)
@@ -338,17 +340,23 @@ async def get_album_search_input(screen, font):
                     pygame.draw.rect(screen, WHITE, result_rect)
                 pygame.draw.rect(screen, DARK_BLUE, result_rect, 1)
                 if album['image_url'] and album['uri'] not in album_covers:
-                    album_covers[album['uri']] = download_and_resize_album_cover(album['image_url'], 50, 50)
+                    try:
+                        album_covers[album['uri']] = download_and_resize_album_cover(album['image_url'], 50, 50)
+                    except Exception:
+                        album_covers[album['uri']] = None
+                
                 if album['uri'] in album_covers and album_covers[album['uri']]:
                     screen.blit(album_covers[album['uri']], (result_rect.x + 10, result_rect.y + 10))
                     text_start_x = result_rect.x + 70
                 else:
                     text_start_x = result_rect.x + 10
-                name_font = pygame.font.SysFont('corbel', 18)
-                name_surf = name_font.render(album['name'], True, BLACK)
+                
+                name_font_local = pygame.font.SysFont('corbel', 18)
+                name_surf = name_font_local.render(album['name'], True, BLACK)
                 screen.blit(name_surf, (text_start_x, result_rect.y + 10))
-                artist_font = pygame.font.SysFont('corbel', 16)
-                artist_surf = artist_font.render(album['artist'], True, DARK_GREY)
+                
+                artist_font_local = pygame.font.SysFont('corbel', 16)
+                artist_surf = artist_font_local.render(album['artist'], True, DARK_GREY)
                 screen.blit(artist_surf, (text_start_x, result_rect.y + 35))
                 y_offset += 80
         elif text:
@@ -358,28 +366,27 @@ async def get_album_search_input(screen, font):
             no_results_surf = font.render("Type to search. Press Enter.", True, WHITE)
             screen.blit(no_results_surf, (results_area.x + 10, results_area.y + 10))
 
-    search_input_clock = pygame.time.Clock()
-
+    loop_iteration = 0
     while True:
-        mouse_pos = pygame.mouse.get_pos()
+        loop_iteration += 1
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                return USER_QUIT_ALBUM_SEARCH
+                return USER_ABORT_GAME_FROM_SEARCH
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if input_box.collidepoint(event.pos):
                     active = not active
                 else:
                     active = False
                 color = color_active if active else color_inactive
-                if quit_button_rect_local.collidepoint(mouse_pos):
-                    return USER_QUIT_ALBUM_SEARCH
+                if quit_button_rect_local.collidepoint(event.pos):
+                    return USER_ABORT_GAME_FROM_SEARCH
                 if search_results:
-                    y_offset = results_area.y + 10
-                    for album in search_results:
-                        result_rect = pygame.Rect(results_area.x + 5, y_offset, results_area.width - 10, 70)
-                        if result_rect.collidepoint(event.pos):
-                            return album
-                        y_offset += 80
+                    y_offset_click = results_area.y + 10
+                    for album_click in search_results:
+                        result_rect_click = pygame.Rect(results_area.x + 5, y_offset_click, results_area.width - 10, 70)
+                        if result_rect_click.collidepoint(event.pos):
+                            return album_click
+                        y_offset_click += 80
             if event.type == pygame.KEYDOWN:
                 if active:
                     if event.key == pygame.K_RETURN:
@@ -393,19 +400,24 @@ async def get_album_search_input(screen, font):
                             album_covers.clear()
                     else:
                         text += event.unicode
+        
         screen.fill((30, 30, 30))
+
         label_font = pygame.font.SysFont("Press Start 2P", 25)
         label = label_font.render("Search for an album:", True, WHITE)
         screen.blit(label, (input_box.x, input_box.y - 40))
+
         txt_surface = font.render(text, True, color)
         screen.blit(txt_surface, (input_box.x + 5, input_box.y + 5))
         pygame.draw.rect(screen, color, input_box, 2)
+
         draw_search_results_local()
+
         pygame.draw.rect(screen, LIGHT_BLUE, quit_button_rect_local)
         quit_text_surf = quit_button_font.render("QUIT", True, BLACK)
         quit_text_rect = quit_text_surf.get_rect(center=quit_button_rect_local.center)
         screen.blit(quit_text_surf, quit_text_rect)
+        
         pygame.display.flip()
         
-        await asyncio.sleep(0.001)
-        search_input_clock.tick(30)
+        await asyncio.sleep(0)
