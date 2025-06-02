@@ -1,3 +1,12 @@
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+SPOTIFY_CLIENT_ID = os.getenv("SPOTIFY_CLIENT_ID")
+SPOTIFY_CLIENT_SECRET = os.getenv("SPOTIFY_CLIENT_SECRET")
+SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI")
+
 width = 600
 height = 600
 
@@ -13,11 +22,6 @@ DARK_GREY = (30,30,30)
 SNAKE_SPEED = 10  # How often the snake moves
 GRID_SIZE = 30  # Size for snake movement
 ALBUM_GRID_SIZE = 60  # Size for album pieces
-
-# Spotify API credentials
-SPOTIFY_CLIENT_ID = "defd35be86e24389ad40e4f29d9fee68"  
-SPOTIFY_CLIENT_SECRET = "9d636af19f3f4fc6909bfff710da8b11"  
-SPOTIFY_REDIRECT_URI = "http://127.0.0.1:8888/callback"
 
 EASTER_EGG_TRACK_URI = "spotify:track:2H30WL3exSctlDC9GyRbD4" #shhhh
 WINNING_TRACK_URI = "spotify:track:7ccI9cStQbQdystvc6TvxD" # We are the champions by queen
