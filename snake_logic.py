@@ -1,11 +1,10 @@
 import pygame
 import time
 import random
-import math
 import asyncio
 from spotipy_handling import (
     get_album_search_input, download_and_resize_album_cover, 
-    play_random_track_from_album, sp, play_uri_with_details,
+    play_random_track_from_album, play_uri_with_details,
     USER_QUIT_ALBUM_SEARCH
 )
 from shared_constants import *
@@ -69,17 +68,13 @@ async def start_game(screen):
     album_result = await get_album_search_input(screen, pygame.font.SysFont('corbel', 20))
     
     if album_result == USER_QUIT_ALBUM_SEARCH:
-        print("User quit from album search. Exiting start_game.")
         return
     if not album_result:
-        print("Album search failed or no album selected, returning to main menu.")
         await start_menu()
         return
 
-    print(f"Selected album: {album_result['name']} by {album_result['artist']}")
     album_cover_surface = download_and_resize_album_cover(album_result['image_url'], width, height)
     if album_cover_surface is None:
-        print("Failed to download or resize album cover, returning to main menu.")
         await start_menu()
         return
 
@@ -98,7 +93,6 @@ async def start_game(screen):
 
     def update_song_display_from_callback(track_name, track_artist, is_ee_primed):
         nonlocal song_display_state # Or self.song_display_state if in a class
-        print(f"[{time.perf_counter():.4f}] snake_logic (callback): Updating song info: {track_name}, {track_artist}, EE: {is_ee_primed}")
         song_display_state["name"] = track_name
         song_display_state["artist"] = track_artist
         song_display_state["easter_egg_primed"] = is_ee_primed
@@ -106,7 +100,6 @@ async def start_game(screen):
         # show_song will use song_display_state values.
 
     # Initial song play
-    print(f"[{time.perf_counter():.4f}] snake_logic: Initial game song play (from selected album). Creating task.")
     song_display_state["name"] = "Loading first game song..."
     song_display_state["artist"] = ""
     asyncio.create_task(play_random_track_from_album(album_result['uri'], update_song_display_from_callback))
@@ -154,7 +147,8 @@ async def start_game(screen):
             if event.type == pygame.QUIT:
                 try: 
                     if sp: sp.pause_playback()
-                except Exception as e: print(f"Error pausing on quit: {e}")
+                except Exception:
+                    pass
                 pygame.quit()
                 return
             if event.type == pygame.KEYDOWN:
@@ -193,7 +187,8 @@ async def start_game(screen):
             if len(revealed_pieces) >= total_album_pieces:
                 try: 
                     if sp: sp.pause_playback()
-                except Exception as e: print(f"Error pausing: {e}")
+                except Exception:
+                    pass
                 await winning_screen(screen, score, album_pieces)
                 return
 
@@ -201,7 +196,6 @@ async def start_game(screen):
             fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
             
             if score > 0 and score % 50 == 0:
-                print(f"[{time.perf_counter():.4f}] snake_logic: Score multiple of 50. Creating task for song change.")
                 song_display_state["name"] = "Changing song..."
                 song_display_state["artist"] = ""
                 asyncio.create_task(play_random_track_from_album(album_result['uri'], update_song_display_from_callback))
@@ -211,13 +205,15 @@ async def start_game(screen):
             snake_pos in snake_body[1:]):
             try: 
                 if sp: sp.pause_playback()
-            except Exception as e: print(f"Error pausing: {e}")
+            except Exception:
+                pass
             await game_over(screen, score)
             return
         elif score > 990 and len(revealed_pieces) >= total_album_pieces:
             try: 
                 if sp: sp.pause_playback()
-            except Exception as e: print(f"Error pausing: {e}")
+            except Exception:
+                pass
             await winning_screen(screen, score, album_pieces)
             return
 
@@ -279,9 +275,9 @@ async def winning_screen(screen, score, album_pieces):
     )
     
     if played_win_successfully:
-        print(f"Winning screen track started: {win_song_name} - {win_song_artist} (starting at {WINNING_SONG_START_MS}ms)")
+        pass # print(f"Winning screen track started: {win_song_name} - {win_song_artist} (starting at {WINNING_SONG_START_MS}ms)") # Debug, remove
     else:
-        print(f"Failed to play winning screen track. Got: {win_song_name} - {win_song_artist}")
+        pass # print(f"Failed to play winning screen track. Got: {win_song_name} - {win_song_artist}") # Debug, remove
         # You might want fallback names here too if desired
 
     font = pygame.font.SysFont('Press Start 2P', 45)
@@ -290,7 +286,8 @@ async def winning_screen(screen, score, album_pieces):
             if event.type == pygame.QUIT:
                 try: 
                     if sp: sp.pause_playback()
-                except Exception as e: print(f"Error pausing on quit: {e}")
+                except Exception:
+                    pass
                 pygame.quit()
                 return
 
@@ -319,8 +316,7 @@ async def winning_screen(screen, score, album_pieces):
     await start_menu()
 
 async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, prev_track_artist):
-    print("Easter Egg Triggered!")
-    
+    # print("Easter Egg Triggered!") # User-facing event, perhaps keep or make part of UI message
     EASTER_EGG_START_MS = 176000 # New start time
 
     # Play the Easter Egg track using play_uri_with_details, now with specified start time
@@ -332,10 +328,9 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
     )
     
     if played_ee_successfully:
-        print(f"Easter Egg track playing: {ee_name} - {ee_artist} (starting at {EASTER_EGG_START_MS}ms)")
+        pass # print(f"Easter Egg track playing: {ee_name} - {ee_artist} (starting at {EASTER_EGG_START_MS}ms)") # Debug, remove
     else:
-        print(f"Failed to play Easter Egg track. Error details: {ee_name} - {ee_artist}")
-        # Fallback names if track play fails, so message still makes sense
+        # print(f"Failed to play Easter Egg track. Error details: {ee_name} - {ee_artist}") # Debug, remove
         ee_name = "A Mystery Track"
         ee_artist = "The Easter Bunny"
 
@@ -346,7 +341,8 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
             if event.type == pygame.QUIT:
                 try: 
                     if sp: sp.pause_playback()
-                except Exception as e: print(f"Error pausing: {e}")
+                except Exception:
+                    pass
                 pygame.quit()
                 return
         screen.fill(BLACK) # Or some other effect
@@ -380,7 +376,8 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
             if event.type == pygame.QUIT:
                 try: 
                     if sp: sp.pause_playback()
-                except Exception as e: print(f"Error pausing: {e}")
+                except Exception:
+                    pass
                 pygame.quit()
                 return 
             if event.type == pygame.MOUSEBUTTONDOWN:
