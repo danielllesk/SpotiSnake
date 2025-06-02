@@ -21,9 +21,16 @@ SPOTIFY_REDIRECT_URI = "http://127.0.0.1:8888/callback"
 EASTER_EGG_TRACK_URI = "spotify:track:2H30WL3exSctlDC9GyRbD4" 
 WINNING_TRACK_URI = "spotify:track:7ccI9cStQbQdystvc6TvxD" 
 
+USER_QUIT_ALBUM_SEARCH = "USER_QUIT_ALBUM_SEARCH"
+
+
 button_width = width // 3        
 button_height = height // 14      
 button_x = (width - button_width) // 2 
 
 play_button_y = height // 3       
 quit_button_y = play_button_y + button_height + (height // 30) 
+
+sp = None
+cached_device_id = None
+USER_QUIT_ALBUM_SEARCH = "USER_QUIT_ALBUM_SEARCH"
