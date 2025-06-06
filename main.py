@@ -4,6 +4,8 @@ from spotipy_handling import cleanup
 
 async def main():
     await start_menu() # Await the async start_menu function
+    asyncio.sleep(0)
+asyncio.run(main())
 
 if __name__ == "__main__":
     try:
