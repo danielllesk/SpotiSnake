@@ -1,18 +1,17 @@
 from ui import start_menu
-import asyncio 
-from spotipy_handling import cleanup 
+from spotipy_handling import cleanup
+import asyncio
 
 async def main():
-    await start_menu() # Await the async start_menu function
-    asyncio.sleep(0)
-asyncio.run(main())
+    await start_menu()  # Await your async start menu
 
 if __name__ == "__main__":
     try:
-        asyncio.run(main()) 
+        asyncio.run(main())  # Only run it once!
     except SystemExit:
-        pass # Allow clean exit
+        pass  # Allow clean exit
     except KeyboardInterrupt:
         print("\nApplication interrupted by user (Ctrl+C).")
     finally:
-        cleanup() # Ensure Spotify is paused etc.
+        cleanup()  # Ensure cleanup
+
