@@ -1,6 +1,6 @@
 import pygame
 import spotipy
-from spotipy.oauth2 import SpotifyOAuth
+from spotipy.oauth2 import SpotifyPKCE
 from shared_constants import *
 import requests
 from io import BytesIO
@@ -8,9 +8,13 @@ import random
 import time
 import asyncio
 import traceback
+import json
+import os
 
 clock = pygame.time.Clock()
 pygame.init()
+
+
 
 # Defines what my application can do with the spotify account
 SCOPES = [
@@ -49,16 +53,24 @@ def get_spotify_device(spotify_instance):
     return cached_device_id
 
 def authenticate_spotify():
-    """Handles Spotify OAuth authentication and returns a Spotify instance."""
+    """Handles Spotify PKCE authentication and returns a Spotify instance."""
     try:
-        # Using the SpotiSnake app credentials
-        auth_manager = SpotifyOAuth(
+        # Only clear cache if it doesn't exist or is invalid
+        try:
+            if os.path.exists('.cache'):
+                with open('.cache', 'r') as f:
+                    token_info = json.load(f)
+                    if not token_info.get('access_token'):
+                        os.remove('.cache')
+        except:
+            os.remove('.cache')
+
+        auth_manager = SpotifyPKCE(
             client_id=SPOTIFY_CLIENT_ID,
-            client_secret=SPOTIFY_CLIENT_SECRET,
             redirect_uri=SPOTIFY_REDIRECT_URI,
-            scope=" ".join(SCOPES),
+            scope=SPOTIFY_AUTH_SCOPE,
             open_browser=True,
-            cache_handler=None
+            cache_path=".cache"
         )
         
         # Create Spotify instance
@@ -69,11 +81,14 @@ def authenticate_spotify():
             return None
             
         return spotify_instance
-    except Exception:
+    except Exception as e:
+        print(f"Auth error: {str(e)}")
+        traceback.print_exc()
         return None
 
 def show_login_screen(screen, font):
     """Displays the Spotify login screen and handles the authentication flow."""
+    clock = pygame.time.Clock()  # Moved inside function where it's used
     global sp
     login_button = pygame.Rect(width//2 - 150, height//2 - 25, 300, 50)
     login_text_default = "Login with Spotify"
@@ -107,9 +122,10 @@ def show_login_screen(screen, font):
                         else:
                             error_message = "Login failed. Ensure Spotify is open & Premium."
                             error_timer = time.time()
-                    except Exception:
-                        error_message = "Login error. Try again."
+                    except Exception as e:
+                        error_message = f"Login error: {str(e)}"
                         error_timer = time.time()
+                        traceback.print_exc()  # Print full traceback for debugging
                     finally:
                         is_authenticating = False
                         current_login_text = login_text_default
@@ -233,7 +249,7 @@ async def play_random_track_from_album(album_uri, song_info_updater_callback):
         song_info_updater_callback("Error During Playback", "Album Track Error", False)
 
 def cleanup():
-    """Pauses Spotify playback and clears the cached device ID, if applicable."""
+    """Cleans up Spotify session without removing auth token."""
     global cached_device_id
     try:
         if sp:
@@ -242,11 +258,12 @@ def cleanup():
                 if current_playback and current_playback.get('is_playing'):
                     sp.pause_playback()
             except Exception:
-                pass 
+                pass
     except Exception:
         pass
     finally:
-        cached_device_id = None # Clear cached device ID on cleanup
+        cached_device_id = None
+        # Don't remove .cache file to maintain authentication
 
 def search_album(query):
     """Searches Spotify for albums matching the query. Returns a list of album details."""

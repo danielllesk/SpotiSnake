@@ -1,0 +1,2 @@
+# pygbag build ignore list
+.env 

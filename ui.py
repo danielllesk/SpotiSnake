@@ -1,10 +1,8 @@
 import pygame
-import sys
 import asyncio
 from shared_constants import *
 from spotipy_handling import show_login_screen, cleanup, get_spotify_device
 
-pygame.init()
 screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption("SpotiSnake - Start Menu")
 font = pygame.font.SysFont("Press Start 2P", 25)
@@ -45,7 +43,6 @@ async def quit_game_async(dummy_arg=None):
         pass
     cleanup()
     pygame.quit()
-    sys.exit()
 
 async def start_menu():
     """Displays the start menu, handles login, and starts the game or quits."""

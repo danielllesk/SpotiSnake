@@ -10,8 +10,6 @@ from spotipy_handling import (
 from shared_constants import * 
 from ui import start_menu, quit_game_async
 
-pygame.init()
-
 def render_text_with_outline(text_str, font, main_color, outline_color, thickness):
     """Renders text with a specified outline color and thickness."""
     outline_surfaces = []

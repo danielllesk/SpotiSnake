@@ -1,0 +1,7 @@
+[pygbag]
+title = "SpotiSnake"
+version = "1.0.0"
+author = "Your Name"
+description = "A Spotify-powered Snake game"
+template = "web/index.html"
+cdn = "cdn.jsdelivr.net" 
