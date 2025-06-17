@@ -1,5 +1,7 @@
 import pygame
 import asyncio
+import sys
+import os
 from shared_constants import *
 from spotipy_handling import show_login_screen, cleanup, get_spotify_device
 
@@ -36,13 +38,35 @@ def draw_button(text, x, y, w, h, inactive_color, active_color, action=None, act
     return False
 
 async def quit_game_async(dummy_arg=None):
-    """Handles game shutdown: pauses Spotify, cleans up, and exits Pygame/Python."""
+    """Handles game shutdown: pauses Spotify, cleans up, and exits properly for PyInstaller."""
     try:
-        if sp: sp.pause_playback()
+        if sp: 
+            sp.pause_playback()
     except Exception:
         pass
+    
     cleanup()
-    pygame.quit()
+    
+    # Proper exit for PyInstaller
+    try:
+        pygame.quit()
+    except:
+        pass
+    
+    # Force exit if running as executable
+    if getattr(sys, 'frozen', False):
+        os._exit(0)
+    else:
+        sys.exit(0)
+
+async def back_to_menu():
+    """Returns to the start menu instead of quitting."""
+    try:
+        if sp: 
+            sp.pause_playback()
+    except Exception:
+        pass
+    # Just return to menu - no need to quit pygame
 
 async def start_menu():
     """Displays the start menu, handles login, and starts the game or quits."""

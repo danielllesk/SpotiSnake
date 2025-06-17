@@ -79,6 +79,10 @@ async def start_game(screen):
         await quit_game_async()
         return
     
+    if album_result == "BACK_TO_MENU":
+        await start_menu()
+        return
+    
     if not album_result:
         await quit_game_async()
         return
@@ -264,7 +268,7 @@ def show_song(screen, track_name, track_artist):
     screen.blit(song_surface, (10, song_display_y))
 
 async def winning_screen(screen, score, album_pieces):
-    """Displays the winning screen, plays a victory song, and counts down to menu."""
+    """Displays the winning screen, plays a victory song, and shows New Game button."""
     start_time = time.monotonic()
     WINNING_SCREEN_DURATION = 8
     COUNTDOWN_START_TIME = 3
@@ -276,6 +280,9 @@ async def winning_screen(screen, score, album_pieces):
     )
     
     font = pygame.font.SysFont('Press Start 2P', 45)
+    button_font = pygame.font.SysFont('Press Start 2P', 25)
+    button_rect = pygame.Rect(width // 2 - 100, height // 2 + 100, 200, 50)
+    
     while time.monotonic() - start_time < WINNING_SCREEN_DURATION:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -285,6 +292,10 @@ async def winning_screen(screen, score, album_pieces):
                     pass
                 pygame.quit()
                 return
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if button_rect.collidepoint(event.pos):
+                    await start_menu()
+                    return
 
         screen.fill(BLACK)
         for row in range(height // ALBUM_GRID_SIZE):
@@ -303,11 +314,24 @@ async def winning_screen(screen, score, album_pieces):
         else:
             countdown = int(WINNING_SCREEN_DURATION - elapsed_time)
             if countdown < 0: countdown = 0 
-            countdown_surface = render_text_with_outline(f"Menu in {countdown}...", font, WHITE, OUTLINE_COLOR, OUTLINE_THICKNESS)
+            countdown_surface = render_text_with_outline(f"New Game in {countdown}...", font, WHITE, OUTLINE_COLOR, OUTLINE_THICKNESS)
             screen.blit(countdown_surface, (width//2 - countdown_surface.get_width()//2, height//2))
+        
+        # Draw New Game button
+        mouse_pos = pygame.mouse.get_pos()
+        if button_rect.collidepoint(mouse_pos):
+            pygame.draw.rect(screen, DARK_BLUE, button_rect)
+        else:
+            pygame.draw.rect(screen, LIGHT_BLUE, button_rect)
+        
+        button_text = button_font.render("NEW GAME", True, BLACK)
+        button_text_rect = button_text.get_rect(center=button_rect.center)
+        screen.blit(button_text, button_text_rect)
         
         pygame.display.flip()
         await asyncio.sleep(1/60)
+    
+    # Auto-start new game after countdown
     await start_menu()
 
 async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, prev_track_artist):
@@ -391,9 +415,52 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
 async def game_over(screen, score):
     """Displays the game over message and returns to the start menu after a delay."""
     game_over_font = pygame.font.SysFont('Press Start 2P', 40)
-    msg_surface = render_text_with_outline(f'Game Over! Score: {score}', game_over_font, RED, OUTLINE_COLOR, OUTLINE_THICKNESS)
-    rect = msg_surface.get_rect(center=(width // 2, height // 2))
-    screen.blit(msg_surface, rect)
-    pygame.display.flip()
-    await asyncio.sleep(2)
-    await start_menu()
+    new_game_font = pygame.font.SysFont('Press Start 2P', 25)
+    
+    # Show game over message for 2 seconds
+    start_time = time.monotonic()
+    while time.monotonic() - start_time < 2:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                await quit_game_async()
+                return
+        
+        screen.fill(BLACK)
+        msg_surface = render_text_with_outline(f'Game Over! Score: {score}', game_over_font, RED, OUTLINE_COLOR, OUTLINE_THICKNESS)
+        rect = msg_surface.get_rect(center=(width // 2, height // 2))
+        screen.blit(msg_surface, rect)
+        pygame.display.flip()
+        await asyncio.sleep(1/60)
+    
+    # Show "New Game" button
+    button_rect = pygame.Rect(width // 2 - 100, height // 2 + 50, 200, 50)
+    running = True
+    
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                await quit_game_async()
+                return
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if button_rect.collidepoint(event.pos):
+                    await start_menu()
+                    return
+        
+        screen.fill(BLACK)
+        msg_surface = render_text_with_outline(f'Game Over! Score: {score}', game_over_font, RED, OUTLINE_COLOR, OUTLINE_THICKNESS)
+        rect = msg_surface.get_rect(center=(width // 2, height // 2 - 50))
+        screen.blit(msg_surface, rect)
+        
+        # Draw New Game button
+        mouse_pos = pygame.mouse.get_pos()
+        if button_rect.collidepoint(mouse_pos):
+            pygame.draw.rect(screen, DARK_BLUE, button_rect)
+        else:
+            pygame.draw.rect(screen, LIGHT_BLUE, button_rect)
+        
+        button_text = new_game_font.render("NEW GAME", True, BLACK)
+        button_text_rect = button_text.get_rect(center=button_rect.center)
+        screen.blit(button_text, button_text_rect)
+        
+        pygame.display.flip()
+        await asyncio.sleep(1/60)

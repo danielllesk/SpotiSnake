@@ -3,15 +3,16 @@ from spotipy_handling import cleanup
 import asyncio
 
 async def main():
-    await start_menu()  # Await your async start menu
-
-if __name__ == "__main__":
     try:
-        asyncio.run(main())  # Only run it once!
+        await start_menu()  # This is async, need await
     except SystemExit:
-        pass  # Allow clean exit
+        pass
     except KeyboardInterrupt:
         print("\nApplication interrupted by user (Ctrl+C).")
     finally:
-        cleanup()  # Ensure cleanup
+        cleanup()
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
 

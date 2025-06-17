@@ -55,15 +55,24 @@ def get_spotify_device(spotify_instance):
 def authenticate_spotify():
     """Handles Spotify PKCE authentication and returns a Spotify instance."""
     try:
-        # Only clear cache if it doesn't exist or is invalid
-        try:
-            if os.path.exists('.cache'):
+        # Check if cache exists and is valid
+        cache_valid = False
+        if os.path.exists('.cache'):
+            try:
                 with open('.cache', 'r') as f:
                     token_info = json.load(f)
-                    if not token_info.get('access_token'):
+                    # Check if token exists and hasn't expired
+                    if (token_info.get('access_token') and 
+                        token_info.get('expires_at') and 
+                        time.time() < token_info.get('expires_at', 0)):
+                        cache_valid = True
+                    else:
+                        print("Token expired or invalid, removing cache")
                         os.remove('.cache')
-        except:
-            os.remove('.cache')
+            except (json.JSONDecodeError, KeyError, FileNotFoundError):
+                print("Invalid cache file, removing")
+                if os.path.exists('.cache'):
+                    os.remove('.cache')
 
         auth_manager = SpotifyPKCE(
             client_id=SPOTIFY_CLIENT_ID,
@@ -76,8 +85,20 @@ def authenticate_spotify():
         # Create Spotify instance
         spotify_instance = spotipy.Spotify(auth_manager=auth_manager)
         
-        # Test the connection
+        # Test the connection by trying to get user info
+        try:
+            user_info = spotify_instance.current_user()
+            if not user_info:
+                print("Failed to get user info, authentication may have failed")
+                return None
+            print(f"Authenticated as: {user_info.get('display_name', 'Unknown')}")
+        except Exception as e:
+            print(f"Authentication test failed: {e}")
+            return None
+        
+        # Test device connection
         if get_spotify_device(spotify_instance) is None:
+            print("No active Spotify devices found")
             return None
             
         return spotify_instance
@@ -396,7 +417,7 @@ async def get_album_search_input(screen, font):
                     active = False
                 color = color_active if active else color_inactive
                 if quit_button_rect_local.collidepoint(event.pos):
-                    return USER_ABORT_GAME_FROM_SEARCH
+                    return "BACK_TO_MENU"
                 if search_results:
                     y_offset_click = results_area.y + 10
                     for album_click in search_results:
@@ -431,7 +452,7 @@ async def get_album_search_input(screen, font):
         draw_search_results_local()
 
         pygame.draw.rect(screen, LIGHT_BLUE, quit_button_rect_local)
-        quit_text_surf = quit_button_font.render("QUIT", True, BLACK)
+        quit_text_surf = quit_button_font.render("BACK TO MENU", True, BLACK)
         quit_text_rect = quit_text_surf.get_rect(center=quit_button_rect_local.center)
         screen.blit(quit_text_surf, quit_text_rect)
         
