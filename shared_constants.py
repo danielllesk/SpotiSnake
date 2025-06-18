@@ -1,5 +1,7 @@
+import pygame
+
 # Spotify credentials
-SPOTIFY_CLIENT_ID = "aa7df0779c82489f849692b1754f1449"
+SPOTIFY_CLIENT_ID = "aa7df0779c82489f849692b1754f1449" 
 SPOTIFY_REDIRECT_URI = "http://127.0.0.1:8000/callback"
 SPOTIFY_AUTH_SCOPE = "user-modify-playback-state user-read-playback-state user-read-email user-read-private"
 sp = None
@@ -38,9 +40,7 @@ USER_ABORT_GAME_FROM_SEARCH = "USER_ABORT_GAME_FROM_SEARCH"
 OUTLINE_COLOR = BLACK
 OUTLINE_THICKNESS = 2 
 
-button_width = width // 3        
-button_height = height // 14      
-button_x = (width - button_width) // 2 
-
-play_button_y = height // 3       
-quit_button_y = play_button_y + button_height + (height // 30)
+game_bg = pygame.image.load('background.png')
+game_bg = pygame.transform.scale(game_bg, (width, height))
+start_menu_bg = pygame.image.load('SpotipyStart.png')
+start_menu_bg = pygame.transform.scale(start_menu_bg, (width, height))

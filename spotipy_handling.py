@@ -14,8 +14,6 @@ import os
 clock = pygame.time.Clock()
 pygame.init()
 
-
-
 # Defines what my application can do with the spotify account
 SCOPES = [
     "user-modify-playback-state",
@@ -53,7 +51,7 @@ def get_spotify_device(spotify_instance):
     return cached_device_id
 
 def authenticate_spotify():
-    """Handles Spotify PKCE authentication and returns a Spotify instance."""
+    """Handles Spotify PKCE authentication and returns a Spotify instance.""" #third time changing auth flow
     try:
         # Check if cache exists and is valid
         cache_valid = False
@@ -153,7 +151,13 @@ def show_login_screen(screen, font):
 
         screen.fill(DARK_GREY)
         
-        title = title_font.render("Welcome to SpotiSnake!", True, LIGHT_BLUE)
+        # Draw background
+        if game_bg:
+            screen.blit(game_bg, (0, 0))
+        else:
+            screen.fill(DARK_GREY)
+        
+        title = title_font.render("Welcome to SpotiSnake!", True, BLACK)
         screen.blit(title, (width//2 - title.get_width()//2, height//4))
         
         if is_authenticating:
@@ -441,6 +445,12 @@ async def get_album_search_input(screen, font):
         
         screen.fill((30, 30, 30))
 
+        # Draw background
+        if game_bg:
+            screen.blit(game_bg, (0, 0))
+        else:
+            screen.fill(DARK_GREY)
+
         label_font = pygame.font.SysFont("Press Start 2P", 25)
         label = label_font.render("Search for an album:", True, WHITE)
         screen.blit(label, (input_box.x, input_box.y - 40))
@@ -451,7 +461,7 @@ async def get_album_search_input(screen, font):
 
         draw_search_results_local()
 
-        pygame.draw.rect(screen, LIGHT_BLUE, quit_button_rect_local)
+        pygame.draw.rect(screen, BLACK, quit_button_rect_local)
         quit_text_surf = quit_button_font.render("BACK TO MENU", True, BLACK)
         quit_text_rect = quit_text_surf.get_rect(center=quit_button_rect_local.center)
         screen.blit(quit_text_surf, quit_text_rect)

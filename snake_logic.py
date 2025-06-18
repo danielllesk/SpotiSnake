@@ -223,7 +223,11 @@ async def start_game(screen):
             await winning_screen(screen, score, album_pieces)
             return
 
-        screen.fill(LIGHT_GREY)
+        # Draw background
+        if game_bg:
+            screen.blit(game_bg, (0, 0))
+        else:
+            screen.fill(LIGHT_GREY)
 
         for pos in revealed_pieces:
             px, py = pos[0] * ALBUM_GRID_SIZE, pos[1] * ALBUM_GRID_SIZE
@@ -297,7 +301,12 @@ async def winning_screen(screen, score, album_pieces):
                     await start_menu()
                     return
 
-        screen.fill(BLACK)
+        # Draw background
+        if game_bg:
+            screen.blit(game_bg, (0, 0))
+        else:
+            screen.fill(LIGHT_GREY)
+        
         for row in range(height // ALBUM_GRID_SIZE):
             for col in range(width // ALBUM_GRID_SIZE):
                 pos = (col, row)
@@ -356,7 +365,11 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
                     pass
                 pygame.quit()
                 return
-        screen.fill(BLACK)
+        # Draw background
+        if game_bg:
+            screen.blit(game_bg, (0, 0))
+        else:
+            screen.fill(BLACK)
         for row in range(height // ALBUM_GRID_SIZE):
             for col in range(width // ALBUM_GRID_SIZE):
                 pos = (col, row)
@@ -400,7 +413,11 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
                 if button_rect.collidepoint(event.pos):
                     await start_menu()
                     return 
-        screen.fill(BLACK) 
+        # Draw background
+        if game_bg:
+            screen.blit(game_bg, (0, 0))
+        else:
+            screen.fill(BLACK)
         screen.blit(msg_surf0, msg_rect0)
         screen.blit(msg_surf1, msg_rect1)
         screen.blit(msg_surf2a, msg_rect2a)
@@ -426,6 +443,13 @@ async def game_over(screen, score):
                 return
         
         screen.fill(BLACK)
+        
+        # Draw background
+        if game_bg:
+            screen.blit(game_bg, (0, 0))
+        else:
+            screen.fill(LIGHT_GREY)
+        
         msg_surface = render_text_with_outline(f'Game Over! Score: {score}', game_over_font, RED, OUTLINE_COLOR, OUTLINE_THICKNESS)
         rect = msg_surface.get_rect(center=(width // 2, height // 2))
         screen.blit(msg_surface, rect)
@@ -447,8 +471,15 @@ async def game_over(screen, score):
                     return
         
         screen.fill(BLACK)
+        
+        # Draw background
+        if game_bg:
+            screen.blit(game_bg, (0, 0))
+        else:
+            screen.fill(LIGHT_GREY)
+        
         msg_surface = render_text_with_outline(f'Game Over! Score: {score}', game_over_font, RED, OUTLINE_COLOR, OUTLINE_THICKNESS)
-        rect = msg_surface.get_rect(center=(width // 2, height // 2 - 50))
+        rect = msg_surface.get_rect(center=(width // 2, height // 2))
         screen.blit(msg_surface, rect)
         
         # Draw New Game button

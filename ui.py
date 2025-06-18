@@ -93,13 +93,11 @@ async def start_menu():
             pass
 
     button_play_text = "Play"
-    button_quit_text = "Quit"
 
     button_width = 200
     button_height = 50
     button_x = width // 2 - button_width // 2
-    play_button_y = height // 2 - button_height // 2 - 30
-    quit_button_y = height // 2 - button_height // 2 + 40
+    play_button_y = height // 1.5 - button_height // 1.5
 
     from snake_logic import start_game
 
@@ -109,11 +107,10 @@ async def start_menu():
                 await quit_game_async()
                 return
         
-        screen.fill(DARK_GREY)
-        title_font_main = pygame.font.SysFont("Press Start 2P", 45)
-        title_text = title_font_main.render("SpotiSnake", True, LIGHT_BLUE)
-        title_rect = title_text.get_rect(center=(width // 2, 150))
-        screen.blit(title_text, title_rect)
+        if start_menu_bg:
+            screen.blit(start_menu_bg, (0, 0))
+        else:
+            screen.fill(DARK_GREY)
         
         mouse_pos = pygame.mouse.get_pos()
         mouse_click = pygame.mouse.get_pressed()
@@ -134,26 +131,6 @@ async def start_menu():
         play_text_surf = font.render(button_play_text, True, BLACK)
         play_text_rect = play_text_surf.get_rect(center=play_button_rect.center)
         screen.blit(play_text_surf, play_text_rect)
-
-        # Handle Quit button click directly:
-        quit_button_rect = pygame.Rect(button_x, quit_button_y, button_width, button_height)
-        quit_hovered = quit_button_rect.collidepoint(mouse_pos)
-
-        if quit_hovered:
-            pygame.draw.rect(screen, DARK_BLUE, quit_button_rect)
-            if mouse_click[0] == 1:
-                pygame.time.delay(200)
-                await quit_game_async()
-                # Code below might not be reached if sys.exit() is effective immediately,
-                # but good practice to ensure loop termination.
-                running = False
-                break
-        else:
-            pygame.draw.rect(screen, LIGHT_BLUE, quit_button_rect)
-        
-        quit_text_surf = font.render(button_quit_text, True, BLACK)
-        quit_text_rect = quit_text_surf.get_rect(center=quit_button_rect.center)
-        screen.blit(quit_text_surf, quit_text_rect)
 
         pygame.display.update()
         await asyncio.sleep(1/60)
