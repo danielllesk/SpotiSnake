@@ -42,6 +42,8 @@ async def quit_game_async(dummy_arg=None):
     try:
         if sp: 
             sp.pause_playback()
+            # Give Spotify a moment to actually stop the music
+            await asyncio.sleep(0.5)
     except Exception:
         pass
     

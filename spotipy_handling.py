@@ -278,12 +278,18 @@ def cleanup():
     global cached_device_id
     try:
         if sp:
+            # Be more aggressive about stopping music
             try:
-                current_playback = sp.current_playback()
-                if current_playback and current_playback.get('is_playing'):
-                    sp.pause_playback()
+                sp.pause_playback()
             except Exception:
                 pass
+            # Try again in case the first call didn't work
+            try:
+                sp.pause_playback()
+            except Exception:
+                pass
+            # Give Spotify a moment to actually stop
+            time.sleep(0.3)
     except Exception:
         pass
     finally:
@@ -339,11 +345,8 @@ async def get_album_search_input(screen, font):
         return None
     
     async def music_task_wrapper():
-        """Wraps the music playback task to catch and report errors from its thread."""
-        try:
-            success = await asyncio.to_thread(play_track_sync, SEARCH_TRACK_URI, 3000)
-        except Exception:
-            traceback.print_exc()
+        """Plays background music during album search."""
+        await asyncio.to_thread(play_track_sync, SEARCH_TRACK_URI, 3000)
 
     try:
         loop = asyncio.get_running_loop()
@@ -377,7 +380,7 @@ async def get_album_search_input(screen, font):
             for album in search_results:
                 result_rect = pygame.Rect(results_area.x + 5, y_offset, results_area.width - 10, 70)
                 if result_rect.collidepoint(pygame.mouse.get_pos()):
-                    pygame.draw.rect(screen, LIGHT_GREY, result_rect)
+                    pygame.draw.rect(screen, LIGHT_BLUE, result_rect)
                 else:
                     pygame.draw.rect(screen, WHITE, result_rect)
                 pygame.draw.rect(screen, DARK_BLUE, result_rect, 1)
@@ -413,6 +416,12 @@ async def get_album_search_input(screen, font):
         loop_iteration += 1
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
+                try:
+                    if sp: 
+                        sp.pause_playback()
+                        time.sleep(0.2)
+                except Exception:
+                    pass
                 return USER_ABORT_GAME_FROM_SEARCH
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if input_box.collidepoint(event.pos):
@@ -421,6 +430,12 @@ async def get_album_search_input(screen, font):
                     active = False
                 color = color_active if active else color_inactive
                 if quit_button_rect_local.collidepoint(event.pos):
+                    try:
+                        if sp: 
+                            sp.pause_playback()
+                            time.sleep(0.2)
+                    except Exception:
+                        pass
                     return "BACK_TO_MENU"
                 if search_results:
                     y_offset_click = results_area.y + 10
@@ -455,13 +470,13 @@ async def get_album_search_input(screen, font):
         label = label_font.render("Search for an album:", True, WHITE)
         screen.blit(label, (input_box.x, input_box.y - 40))
 
-        txt_surface = font.render(text, True, color)
+        txt_surface = font.render(text, True, BLACK)
         screen.blit(txt_surface, (input_box.x + 5, input_box.y + 5))
         pygame.draw.rect(screen, color, input_box, 2)
 
         draw_search_results_local()
 
-        pygame.draw.rect(screen, BLACK, quit_button_rect_local)
+        pygame.draw.rect(screen, LIGHT_BLUE, quit_button_rect_local)
         quit_text_surf = quit_button_font.render("BACK TO MENU", True, BLACK)
         quit_text_rect = quit_text_surf.get_rect(center=quit_button_rect_local.center)
         screen.blit(quit_text_surf, quit_text_rect)

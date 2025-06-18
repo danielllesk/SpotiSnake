@@ -4,11 +4,11 @@ import asyncio
 
 async def main():
     try:
-        start_menu()  # Now this is synchronous
+        await start_menu()  # Now this is properly awaited
     except SystemExit:
         pass
     except KeyboardInterrupt:
-        print("\nApplication interrupted by user (Ctrl+C).")
+        print("\nApplication interrupted by me (Ctrl+C).")
     finally:
         cleanup()
     await asyncio.sleep(0)
