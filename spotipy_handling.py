@@ -174,7 +174,7 @@ def show_login_screen(screen, font):
             "Click to login with Spotify",
             "Browser will open for log-in",
             "Return here after log-in",
-            "NOTE: Spotify Premium needed"
+            "NOTE: Spotify Premium needed and open on device"
         ]
         y_offset = height//2 + 50
         small_font = pygame.font.SysFont("Press Start 2P", 20)
@@ -273,6 +273,18 @@ async def play_random_track_from_album(album_uri, song_info_updater_callback):
     except Exception:
         song_info_updater_callback("Error During Playback", "Album Track Error", False)
 
+def safe_pause_playback(sp):
+    try:
+        devices = sp.devices()
+        active_device = next((d for d in devices['devices'] if d.get('is_active')), None)
+        if active_device:
+            sp.pause_playback(device_id=active_device['id'])
+    except Exception as e:
+        if hasattr(e, 'http_status') and getattr(e, 'http_status', None) == 403:
+            print("Spotify restriction: cannot pause playback on this device.")
+        else:
+            print("Spotify error:", e)
+
 def cleanup():
     """Cleans up Spotify session without removing auth token."""
     global cached_device_id
@@ -280,12 +292,12 @@ def cleanup():
         if sp:
             # Be more aggressive about stopping music
             try:
-                sp.pause_playback()
+                safe_pause_playback(sp)
             except Exception:
                 pass
             # Try again in case the first call didn't work
             try:
-                sp.pause_playback()
+                safe_pause_playback(sp)
             except Exception:
                 pass
             # Give Spotify a moment to actually stop
@@ -418,7 +430,7 @@ async def get_album_search_input(screen, font):
             if event.type == pygame.QUIT:
                 try:
                     if sp: 
-                        sp.pause_playback()
+                        safe_pause_playback(sp)
                         time.sleep(0.2)
                 except Exception:
                     pass
@@ -432,7 +444,7 @@ async def get_album_search_input(screen, font):
                 if quit_button_rect_local.collidepoint(event.pos):
                     try:
                         if sp: 
-                            sp.pause_playback()
+                            safe_pause_playback(sp)
                             time.sleep(0.2)
                     except Exception:
                         pass

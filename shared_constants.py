@@ -1,4 +1,16 @@
 import pygame
+import sys
+import os
+
+def resource_path(relative_path):
+    try:
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, relative_path)
+
+if not pygame.get_init():
+    pygame.init()
 
 # Spotify credentials
 SPOTIFY_CLIENT_ID = "aa7df0779c82489f849692b1754f1449" 
@@ -40,7 +52,7 @@ USER_ABORT_GAME_FROM_SEARCH = "USER_ABORT_GAME_FROM_SEARCH"
 OUTLINE_COLOR = BLACK
 OUTLINE_THICKNESS = 2 
 
-game_bg = pygame.image.load('background.png')
+game_bg = pygame.image.load(resource_path('background.png'))
 game_bg = pygame.transform.scale(game_bg, (width, height))
-start_menu_bg = pygame.image.load('SpotipyStart.png')
+start_menu_bg = pygame.image.load(resource_path('SpotipyStart.png'))
 start_menu_bg = pygame.transform.scale(start_menu_bg, (width, height))

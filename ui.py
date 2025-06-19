@@ -1,4 +1,6 @@
 import pygame
+pygame.init()
+pygame.font.init()
 import asyncio
 import sys
 import os

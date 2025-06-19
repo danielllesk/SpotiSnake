@@ -1,6 +1,10 @@
 from ui import start_menu
 from spotipy_handling import cleanup
 import asyncio
+import pygame
+
+pygame.init()
+pygame.font.init()
 
 async def main():
     try:
