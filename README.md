@@ -58,7 +58,7 @@ Finished an album? Snaked your way through some obscure indie record?
 ---
 
 ## Current Stage
-- Web deployment, and code cleanup as of right now
+- Web deployment, and code cleanup as of right now (currently available to download for mac users at https://danielllesk.itch.io/spotisnake but am working on a browser playable version)
 
 ## 🧠 Future Ideas
 - Multiplayer snake battle mode (battle of the albums)
