@@ -1,5 +1,4 @@
 import pygame
-import sys
 import os
 
 def resource_path(relative_path):
@@ -16,8 +15,6 @@ if not pygame.get_init():
 SPOTIFY_CLIENT_ID = "aa7df0779c82489f849692b1754f1449" 
 SPOTIFY_REDIRECT_URI = "http://127.0.0.1:8000/callback"
 SPOTIFY_AUTH_SCOPE = "user-modify-playback-state user-read-playback-state user-read-email user-read-private"
-sp = None
-cached_device_id = None
 
 # Game dimensions
 width = 600

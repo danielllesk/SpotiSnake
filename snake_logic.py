@@ -2,10 +2,9 @@ import pygame
 import time
 import random
 import asyncio
-import traceback
 from spotipy_handling import (
     get_album_search_input, download_and_resize_album_cover, 
-    play_random_track_from_album, play_uri_with_details
+    play_random_track_from_album, play_uri_with_details, safe_pause_playback
 )
 from shared_constants import * 
 from ui import start_menu, quit_game_async
@@ -50,6 +49,7 @@ def cut_image_into_pieces(image_surface, piece_width, piece_height):
 
 async def start_game(screen):
     """Initializes and runs the main SpotiSnake game loop, including setup and event handling."""
+    print("DEBUG: snake_logic.py - start_game called")
     pygame.display.set_caption('SpotiSnake')
 
     album_result = None
@@ -57,39 +57,56 @@ async def start_game(screen):
 
     try:
         test_font_object = pygame.font.SysFont('corbel', 20)
-    except Exception:
+        print("DEBUG: snake_logic.py - Font loaded successfully")
+    except Exception as e:
+        print(f"DEBUG: snake_logic.py - Font loading failed: {e}")
         traceback.print_exc()
         await asyncio.sleep(1)
         try:
             fallback_font = pygame.font.SysFont('sans', 20) 
+            print("DEBUG: snake_logic.py - Using fallback font")
             album_result = await get_album_search_input(screen, fallback_font)
-        except Exception:
+        except Exception as e:
+            print(f"DEBUG: snake_logic.py - Fallback font also failed: {e}")
             traceback.print_exc()
             await start_menu()
             return
     else:
         try:
+            print("DEBUG: snake_logic.py - Getting album search input")
             album_result = await get_album_search_input(screen, test_font_object)
-        except Exception:
+            print(f"DEBUG: snake_logic.py - Album search result: {album_result}")
+        except Exception as e:
+            print(f"DEBUG: snake_logic.py - Album search failed: {e}")
             traceback.print_exc()
             await start_menu()
             return
 
+    # Extra debug: ensure album_result is valid
     if album_result == USER_ABORT_GAME_FROM_SEARCH:
+        print("DEBUG: snake_logic.py - User aborted from search (album_result == USER_ABORT_GAME_FROM_SEARCH)")
         await quit_game_async()
         return
     
     if album_result == "BACK_TO_MENU":
+        print("DEBUG: snake_logic.py - User chose back to menu (album_result == BACK_TO_MENU)")
         await start_menu()
         return
     
     if not album_result:
-        await quit_game_async()
+        print("DEBUG: snake_logic.py - No album result (album_result is None or False)")
+        # Instead of quitting, loop back to album search
+        print("DEBUG: snake_logic.py - Restarting album search UI due to no album result")
+        await start_game(screen)
         return
 
+    print(f"DEBUG: snake_logic.py - Loading album cover for: {album_result.get('name', 'Unknown')}")
     album_cover_surface = download_and_resize_album_cover(album_result['image_url'], width, height)
     if album_cover_surface is None:
-        await start_menu()
+        print("DEBUG: snake_logic.py - Failed to load album cover")
+        # Instead of quitting, loop back to album search
+        print("DEBUG: snake_logic.py - Restarting album search UI due to failed album cover load")
+        await start_game(screen)
         return
 
     song_display_state = {
@@ -104,14 +121,17 @@ async def start_game(screen):
         song_display_state["name"] = track_name
         song_display_state["artist"] = track_artist
         song_display_state["easter_egg_primed"] = is_ee_primed
+        print(f"DEBUG: snake_logic.py - Song updated: {track_name} by {track_artist}")
 
     song_display_state["name"] = "Loading first game song..."
     song_display_state["artist"] = ""
-    asyncio.create_task(play_random_track_from_album(album_result['uri'], update_song_display_from_callback))
+    print("DEBUG: snake_logic.py - Starting first track")
+    asyncio.create_task(asyncio.to_thread(play_random_track_from_album, album_result['uri'], update_song_display_from_callback))
 
     album_pieces = cut_image_into_pieces(album_cover_surface, ALBUM_GRID_SIZE, ALBUM_GRID_SIZE)
     revealed_pieces = set()
     total_album_pieces = (width // ALBUM_GRID_SIZE) * (height // ALBUM_GRID_SIZE)
+    print(f"DEBUG: snake_logic.py - Album cut into {len(album_pieces)} pieces")
 
     snake_pos = [width // 2, height // 2]
     snake_body = [[snake_pos[0] - i * GRID_SIZE, snake_pos[1]] for i in range(5)]
@@ -142,6 +162,7 @@ async def start_game(screen):
     pulse_interval = 0.5
     pulse_on = False
 
+    print("DEBUG: snake_logic.py - Starting main game loop")
     while running:
         current_time = time.monotonic()
         if current_time - last_pulse_time > pulse_interval:
@@ -151,11 +172,8 @@ async def start_game(screen):
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                try: 
-                    if sp: sp.pause_playback()
-                except Exception:
-                    pass
-                pygame.quit()
+                print("DEBUG: snake_logic.py - QUIT event in game loop")
+                await quit_game_async()
                 return
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_UP and direction != 'DOWN':
@@ -183,18 +201,18 @@ async def start_game(screen):
 
         if snake_pos == fruit_pos:
             score += 10
+            print(f"DEBUG: snake_logic.py - Fruit eaten, score: {score}")
             if fruit_album_grid not in revealed_pieces:
                 revealed_pieces.add(fruit_album_grid)
+                print(f"DEBUG: snake_logic.py - Revealed piece {fruit_album_grid}")
 
             if song_display_state["easter_egg_primed"]:
+                print("DEBUG: snake_logic.py - Easter egg triggered!")
                 await trigger_easter_egg_sequence(screen, album_pieces, song_display_state["name"], song_display_state["artist"])
                 return
 
             if len(revealed_pieces) >= total_album_pieces:
-                try: 
-                    if sp: sp.pause_playback()
-                except Exception:
-                    pass
+                print("DEBUG: snake_logic.py - All pieces revealed, winning!")
                 await winning_screen(screen, score, album_pieces)
                 return
 
@@ -202,24 +220,19 @@ async def start_game(screen):
             fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
             
             if score > 0 and score % 50 == 0:
+                print(f"DEBUG: snake_logic.py - Score milestone reached: {score}, changing song")
                 song_display_state["name"] = "Changing song..."
                 song_display_state["artist"] = ""
-                asyncio.create_task(play_random_track_from_album(album_result['uri'], update_song_display_from_callback))
+                asyncio.create_task(asyncio.to_thread(play_random_track_from_album, album_result['uri'], update_song_display_from_callback))
 
         if (snake_pos[0] < 0 or snake_pos[0] >= width or
             snake_pos[1] < 0 or snake_pos[1] >= height or
             snake_pos in snake_body[1:]):
-            try: 
-                if sp: sp.pause_playback()
-            except Exception:
-                pass
+            print(f"DEBUG: snake_logic.py - Game over, final score: {score}")
             await game_over(screen, score)
             return
         elif score > 990 and len(revealed_pieces) >= total_album_pieces:
-            try: 
-                if sp: sp.pause_playback()
-            except Exception:
-                pass
+            print("DEBUG: snake_logic.py - Winning condition met!")
             await winning_screen(screen, score, album_pieces)
             return
 
@@ -273,10 +286,8 @@ def show_song(screen, track_name, track_artist):
 
 async def winning_screen(screen, score, album_pieces):
     """Displays the winning screen, plays a victory song, and shows New Game button."""
-    start_time = time.monotonic()
-    WINNING_SCREEN_DURATION = 8
-    COUNTDOWN_START_TIME = 3
-    
+    print("DEBUG: snake_logic.py - winning_screen called")
+    print("DEBUG: snake_logic.py - Playing winning track")
     _, _, _ = await asyncio.to_thread(
         play_uri_with_details, 
         WINNING_TRACK_URI, 
@@ -287,14 +298,11 @@ async def winning_screen(screen, score, album_pieces):
     button_font = pygame.font.SysFont('Press Start 2P', 25)
     button_rect = pygame.Rect(width // 2 - 100, height // 2 + 100, 200, 50)
     
-    while time.monotonic() - start_time < WINNING_SCREEN_DURATION:
+    # Remove countdown and auto-restart. Wait for user to click NEW GAME.
+    while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                try: 
-                    if sp: sp.pause_playback()
-                except Exception:
-                    pass
-                pygame.quit()
+                await quit_game_async()
                 return
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if button_rect.collidepoint(event.pos):
@@ -314,17 +322,10 @@ async def winning_screen(screen, score, album_pieces):
                     px, py = pos[0] * ALBUM_GRID_SIZE, pos[1] * ALBUM_GRID_SIZE
                     screen.blit(album_pieces[pos], (px, py))
         
-        elapsed_time = time.monotonic() - start_time
-        if elapsed_time < (WINNING_SCREEN_DURATION - COUNTDOWN_START_TIME):
-            msg1_surf = render_text_with_outline("YOU THE GOAT!", font, GREEN, OUTLINE_COLOR, OUTLINE_THICKNESS)
-            msg2_surf = render_text_with_outline(f"Score: {score}", font, GREEN, OUTLINE_COLOR, OUTLINE_THICKNESS)
-            screen.blit(msg1_surf, (width//2 - msg1_surf.get_width()//2, height//2 - 80))
-            screen.blit(msg2_surf, (width//2 - msg2_surf.get_width()//2, height//2 + 20))
-        else:
-            countdown = int(WINNING_SCREEN_DURATION - elapsed_time)
-            if countdown < 0: countdown = 0 
-            countdown_surface = render_text_with_outline(f"New Game in {countdown}...", font, WHITE, OUTLINE_COLOR, OUTLINE_THICKNESS)
-            screen.blit(countdown_surface, (width//2 - countdown_surface.get_width()//2, height//2))
+        msg1_surf = render_text_with_outline("YOU THE GOAT!", font, GREEN, OUTLINE_COLOR, OUTLINE_THICKNESS)
+        msg2_surf = render_text_with_outline(f"Score: {score}", font, GREEN, OUTLINE_COLOR, OUTLINE_THICKNESS)
+        screen.blit(msg1_surf, (width//2 - msg1_surf.get_width()//2, height//2 - 80))
+        screen.blit(msg2_surf, (width//2 - msg2_surf.get_width()//2, height//2 + 20))
         
         # Draw New Game button
         mouse_pos = pygame.mouse.get_pos()
@@ -339,12 +340,10 @@ async def winning_screen(screen, score, album_pieces):
         
         pygame.display.flip()
         await asyncio.sleep(1/60)
-    
-    # Auto-start new game after countdown
-    await start_menu()
 
 async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, prev_track_artist):
     """Handles the Easter egg event: plays a special song and shows a message."""
+    print("DEBUG: snake_logic.py - trigger_easter_egg_sequence called")
 
     played_ee_successfully, _, _ = await asyncio.to_thread(
         play_uri_with_details, 
@@ -353,17 +352,14 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
     )
     
     if not played_ee_successfully:
+        print("DEBUG: snake_logic.py - Easter egg track failed to play")
         pass
 
     easter_egg_start_time = time.monotonic()
     while time.monotonic() - easter_egg_start_time < 3:
         for event in pygame.event.get(): 
             if event.type == pygame.QUIT:
-                try: 
-                    if sp: sp.pause_playback()
-                except Exception:
-                    pass
-                pygame.quit()
+                await quit_game_async()
                 return
         # Draw background
         if game_bg:
@@ -381,9 +377,9 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
         
     special_message_font = pygame.font.SysFont('Press Start 2P', 30)
     button_font = pygame.font.SysFont('Press Start 2P', 25)
-    message_line0_text = "A thank you from the creator:"
-    message_line1_text = "I love your music taste and thank you for playing my game"
-    message_line2a_text = "But if you used the code to find the song you're a cheater"
+    message_line0_text = "A thank you from the creator: Daniel Eskandar"
+    message_line1_text = "Thank you for playing my game! I love your music taste"
+    message_line2a_text = "Send me your win and get a prize (@danielllesk)"
     message_line2b_text = "PS: I need a job refer me to your friends"
     msg_surf0 = render_text_with_outline(message_line0_text, special_message_font, LIGHT_BLUE, OUTLINE_COLOR, OUTLINE_THICKNESS)
     msg_surf1 = render_text_with_outline(message_line1_text, special_message_font, LIGHT_BLUE, OUTLINE_COLOR, OUTLINE_THICKNESS)
@@ -403,11 +399,7 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
     while message_loop:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                try: 
-                    if sp: sp.pause_playback()
-                except Exception:
-                    pass
-                pygame.quit()
+                await quit_game_async()
                 return 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if button_rect.collidepoint(event.pos):
@@ -431,6 +423,7 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
 
 async def game_over(screen, score):
     """Displays the game over message and returns to the start menu after a delay."""
+    print(f"DEBUG: snake_logic.py - game_over called with score: {score}")
     game_over_font = pygame.font.SysFont('Press Start 2P', 40)
     new_game_font = pygame.font.SysFont('Press Start 2P', 25)
     
