@@ -2,6 +2,7 @@ import pygame
 import time
 import random
 import asyncio
+import traceback
 from spotipy_handling import (
     get_album_search_input, download_and_resize_album_cover, 
     play_random_track_from_album, play_uri_with_details, safe_pause_playback
