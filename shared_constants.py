@@ -14,7 +14,7 @@ if not pygame.get_init():
 
 # Spotify credentials
 SPOTIFY_CLIENT_ID = "aa7df0779c82489f849692b1754f1449" 
-SPOTIFY_REDIRECT_URI = "http://127.0.0.1:8000/callback"
+SPOTIFY_REDIRECT_URI = "https://spotisnake.onrender.com/callback"
 SPOTIFY_AUTH_SCOPE = "user-modify-playback-state user-read-playback-state user-read-email user-read-private"
 
 # Game dimensions
