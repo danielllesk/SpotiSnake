@@ -11,7 +11,8 @@ import os
 import time
 print("DEBUG: spotipy_handling.py - All imports completed")
 
-BACKEND_URL = os.environ.get("SPOTISNAKE_BACKEND_URL", "http://127.0.0.1:8000")
+# Use deployed backend URL for production
+BACKEND_URL = os.environ.get("SPOTISNAKE_BACKEND_URL", "https://spotisnake.onrender.com")
 print(f"DEBUG: spotipy_handling.py - Using backend URL: {BACKEND_URL}")
 
 # Create a session with proper cookie handling
