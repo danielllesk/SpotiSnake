@@ -80,9 +80,36 @@ async def login_screen():
     print("DEBUG: ui.py - login_screen called")
     clock = pygame.time.Clock()
     
+    # Show a waking up message if backend is slow
+    waking_up_backend = False
+    backend_checked = False
+    backend_check_start = time.time()
+    
+    def check_backend():
+        nonlocal waking_up_backend, backend_checked
+        # Start a timer for slow response
+        import threading
+        def show_wakeup_message():
+            nonlocal waking_up_backend
+            waking_up_backend = True
+        timer = threading.Timer(2.0, show_wakeup_message)
+        timer.start()
+        try:
+            result = check_authenticated()
+            timer.cancel()
+            backend_checked = True
+            waking_up_backend = False
+            return result
+        except Exception:
+            timer.cancel()
+            waking_up_backend = False
+            backend_checked = True
+            return False
+    
     # Check if already authenticated
     print("DEBUG: ui.py - Checking if already authenticated")
-    if check_authenticated():
+    already_authenticated = await asyncio.to_thread(check_backend)
+    if already_authenticated:
         print("DEBUG: ui.py - Already authenticated, skipping login")
         return True
     
@@ -126,7 +153,6 @@ async def login_screen():
                                 print("DEBUG: ui.py - Authentication successful")
                                 auth_success = True
                                 break
-                        
                         if auth_success:
                             return True
                         else:
@@ -174,7 +200,15 @@ async def login_screen():
             text = small_font.render(instruction, True, WHITE)
             screen.blit(text, (width//2 - text.get_width()//2, y_offset))
             y_offset += 40
-            
+        
+        # Draw waking up backend message if needed
+        if waking_up_backend:
+            wake_font = pygame.font.SysFont("Press Start 2P", 22)
+            wake_text = wake_font.render("Waking up backend server...", True, LIGHT_BLUE)
+            wake_rect = wake_text.get_rect(center=(width//2, height//2 - 100))
+            pygame.draw.rect(screen, DARK_GREY, wake_rect.inflate(40, 20))
+            screen.blit(wake_text, wake_rect)
+        
         # Draw error message if any
         if error_message and time.time() - error_timer < 5:
             error_surf = small_font.render(error_message, True, RED)

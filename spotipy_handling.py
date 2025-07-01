@@ -8,7 +8,7 @@ from io import BytesIO
 import random
 import asyncio
 import os
-
+import time
 print("DEBUG: spotipy_handling.py - All imports completed")
 
 BACKEND_URL = os.environ.get("SPOTISNAKE_BACKEND_URL", "http://127.0.0.1:8000")
