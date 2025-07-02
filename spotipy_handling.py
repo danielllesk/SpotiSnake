@@ -31,6 +31,12 @@ USER_ABORT_GAME_FROM_SEARCH = "USER_ABORT_GAME_FROM_SEARCH"
 # Global state to prevent multiple login attempts
 is_logging_in = False
 
+device_id_cache = None  # Cache for Spotify device ID
+
+def clear_device_id_cache():
+    global device_id_cache
+    device_id_cache = None
+
 def backend_login():
     """Handles Spotify login through the backend server."""
     global is_logging_in
@@ -171,7 +177,11 @@ def download_and_resize_album_cover(url, target_width, target_height):
         return None
 
 def get_spotify_device():
+    global device_id_cache
     print("DEBUG: spotipy_handling.py - get_spotify_device called")
+    if device_id_cache is not None:
+        print(f"DEBUG: spotipy_handling.py - Returning cached device_id: {device_id_cache}")
+        return device_id_cache
     devices = get_devices()
     if not devices or not devices.get('devices'):
         print("DEBUG: spotipy_handling.py - No devices found")
@@ -179,9 +189,11 @@ def get_spotify_device():
     active_device = next((d for d in devices['devices'] if d.get('is_active')), None)
     if active_device:
         print(f"DEBUG: spotipy_handling.py - Using active device: {active_device['id']}")
-        return active_device['id']
+        device_id_cache = active_device['id']
+        return device_id_cache
     print(f"DEBUG: spotipy_handling.py - Using first device: {devices['devices'][0]['id']}")
-    return devices['devices'][0]['id']
+    device_id_cache = devices['devices'][0]['id']
+    return device_id_cache
 
 def play_track_sync(track_uri, position_ms):
     print(f"DEBUG: spotipy_handling.py - play_track_sync called with track_uri: {track_uri}, position_ms: {position_ms}")
