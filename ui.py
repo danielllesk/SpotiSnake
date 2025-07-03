@@ -79,54 +79,23 @@ async def login_screen():
     """Displays the Spotify login screen and handles the authentication flow."""
     print("DEBUG: ui.py - login_screen called")
     clock = pygame.time.Clock()
-    
-    # Show a waking up message if backend is slow
-    waking_up_backend = False
-    backend_checked = False
-    backend_check_start = time.time()
-    
-    def check_backend():
-        nonlocal waking_up_backend, backend_checked
-        # Start a timer for slow response
-        import threading
-        def show_wakeup_message():
-            nonlocal waking_up_backend
-            waking_up_backend = True
-        timer = threading.Timer(2.0, show_wakeup_message)
-        timer.start()
-        try:
-            result = check_authenticated()
-            timer.cancel()
-            backend_checked = True
-            waking_up_backend = False
-            return result
-        except Exception:
-            timer.cancel()
-            waking_up_backend = False
-            backend_checked = True
-            return False
-    
-    # Check if already authenticated
-    print("DEBUG: ui.py - Checking if already authenticated")
-    already_authenticated = await asyncio.to_thread(check_backend)
-    if already_authenticated:
-        print("DEBUG: ui.py - Already authenticated, skipping login")
-        return True
-    
     login_button = pygame.Rect(width//2 - 150, height//2 - 25, 300, 50)
     login_text_default = "Login with Spotify"
     current_login_text = login_text_default
     error_message = None
     error_timer = 0
     is_authenticating = False
-    
     title_font = pygame.font.SysFont("Press Start 2P", 55)
-    
-    print("DEBUG: ui.py - Entering login screen loop")
+    small_font = pygame.font.SysFont("Press Start 2P", 20)
+    instructions = [
+        "Click to login with Spotify",
+        "Browser will open for log-in",
+        "Return here after log-in",
+        "NOTE: Spotify Premium needed and open on device"
+    ]
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                print("DEBUG: ui.py - QUIT event in login screen")
                 await quit_game_async()
                 return False
             if event.type == pygame.MOUSEBUTTONDOWN:
@@ -139,17 +108,15 @@ async def login_screen():
                     text_rect_auth = text_surf_auth.get_rect(center=login_button.center)
                     screen.blit(text_surf_auth, text_rect_auth)
                     pygame.display.flip()
-
                     try:
                         print("DEBUG: ui.py - Initiating backend login")
                         backend_login()
                         print("DEBUG: ui.py - Backend login initiated")
-                        
                         # Wait for authentication to complete
                         auth_success = False
                         for _ in range(30):  # Wait up to 30 seconds
                             await asyncio.sleep(1)
-                            if check_authenticated():
+                            if await check_authenticated():
                                 print("DEBUG: ui.py - Authentication successful")
                                 auth_success = True
                                 break
@@ -165,61 +132,38 @@ async def login_screen():
                     finally:
                         is_authenticating = False
                         current_login_text = login_text_default
-
         # Draw background
         if game_bg:
             screen.blit(game_bg, (0, 0))
         else:
             screen.fill(DARK_GREY)
-        
         # Draw title
         title = title_font.render("Welcome to SpotiSnake!", True, BLACK)
         screen.blit(title, (width//2 - title.get_width()//2, height//4))
-        
         # Draw login button
-        if is_authenticating:
-            button_color = DARK_BLUE
-        else:
-            button_color = LIGHT_BLUE
-            
+        button_color = DARK_BLUE if is_authenticating else LIGHT_BLUE
         pygame.draw.rect(screen, button_color, login_button)
         text_surf = font.render(current_login_text, True, BLACK)
         text_rect = text_surf.get_rect(center=login_button.center)
         screen.blit(text_surf, text_rect)
-        
         # Draw instructions
-        instructions = [
-            "Click to login with Spotify",
-            "Browser will open for log-in",
-            "Return here after log-in",
-            "NOTE: Spotify Premium needed and open on device"
-        ]
         y_offset = height//2 + 50
-        small_font = pygame.font.SysFont("Press Start 2P", 20)
         for instruction in instructions:
             text = small_font.render(instruction, True, WHITE)
             screen.blit(text, (width//2 - text.get_width()//2, y_offset))
             y_offset += 40
-        
-        # Draw waking up backend message if needed
-        if waking_up_backend:
-            wake_font = pygame.font.SysFont("Press Start 2P", 22)
-            wake_text = wake_font.render("Waking up backend server...", True, LIGHT_BLUE)
-            wake_rect = wake_text.get_rect(center=(width//2, height//2 - 100))
-            pygame.draw.rect(screen, DARK_GREY, wake_rect.inflate(40, 20))
-            screen.blit(wake_text, wake_rect)
-        
         # Draw error message if any
         if error_message and time.time() - error_timer < 5:
             error_surf = small_font.render(error_message, True, RED)
             screen.blit(error_surf, (width//2 - error_surf.get_width()//2, height - 50))
-
         pygame.display.flip()
         clock.tick(30)
+        await asyncio.sleep(0)
 
 async def start_menu():
     """Displays the start menu, handles login, and starts the game or quits."""
     print("DEBUG: ui.py - start_menu called")
+    clock = pygame.time.Clock()
     
     # First, show login screen
     print("DEBUG: ui.py - Showing login screen")
@@ -241,7 +185,7 @@ async def start_menu():
     running = True
     try:
         print("DEBUG: ui.py - Attempting to get Spotify device")
-        active_device_id = await get_spotify_device()
+        active_device_id = get_spotify_device()
         print(f"DEBUG: ui.py - Got device ID: {active_device_id}")
         if active_device_id:
             print("DEBUG: ui.py - Device found, attempting to pause playback")
@@ -267,12 +211,23 @@ async def start_menu():
     print("DEBUG: ui.py - snake_logic imported successfully")
 
     print("DEBUG: ui.py - Entering main menu loop")
+    button_clicked = False
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 print("DEBUG: ui.py - QUIT event received")
                 await quit_game_async()
                 return
+            if event.type == pygame.MOUSEBUTTONDOWN and not button_clicked:
+                if play_button_rect.collidepoint(event.pos):
+                    print("DEBUG: ui.py - Play button clicked!")
+                    button_clicked = True
+                    pygame.time.delay(200)
+                    running = False
+                    print("DEBUG: ui.py - About to call start_game")
+                    await start_game(screen)
+                    print("DEBUG: ui.py - start_game completed")
+                    break
         
         # Draw background
         if start_menu_bg:
@@ -283,21 +238,12 @@ async def start_menu():
         # Remove welcome and instruction text
         # Only draw the play button
         mouse_pos = pygame.mouse.get_pos()
-        mouse_click = pygame.mouse.get_pressed()
         
         play_button_rect = pygame.Rect(button_x, play_button_y, button_width, button_height)
         play_hovered = play_button_rect.collidepoint(mouse_pos)
 
         if play_hovered:
             pygame.draw.rect(screen, DARK_BLUE, play_button_rect)
-            if mouse_click[0] == 1:
-                print("DEBUG: ui.py - Play button clicked!")
-                pygame.time.delay(200)
-                running = False
-                print("DEBUG: ui.py - About to call start_game")
-                await start_game(screen)
-                print("DEBUG: ui.py - start_game completed")
-                break
         else:
             pygame.draw.rect(screen, LIGHT_BLUE, play_button_rect)
         
@@ -306,7 +252,8 @@ async def start_menu():
         screen.blit(play_text_surf, play_text_rect)
 
         pygame.display.update()
-        await asyncio.sleep(1/60)
+        clock.tick(60)
+        await asyncio.sleep(0)
 
 async def main():
     """Main asynchronous entry point for the application UI (intended to be called from main.py)."""

@@ -50,7 +50,8 @@ USER_ABORT_GAME_FROM_SEARCH = "USER_ABORT_GAME_FROM_SEARCH"
 OUTLINE_COLOR = BLACK
 OUTLINE_THICKNESS = 2 
 
-game_bg = pygame.image.load(resource_path('background.png'))
+# Game backgrounds (load by filename only for browser compatibility)
+game_bg = pygame.image.load('background.png')
 game_bg = pygame.transform.scale(game_bg, (width, height))
-start_menu_bg = pygame.image.load(resource_path('SpotipyStart.png'))
+start_menu_bg = pygame.image.load('SpotipyStart.png')
 start_menu_bg = pygame.transform.scale(start_menu_bg, (width, height))

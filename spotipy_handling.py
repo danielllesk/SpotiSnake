@@ -3,7 +3,6 @@ print("DEBUG: spotipy_handling.py - Starting module initialization")
 
 import pygame
 from shared_constants import *
-import requests
 from io import BytesIO
 import random
 import asyncio
@@ -15,13 +14,13 @@ print("DEBUG: spotipy_handling.py - All imports completed")
 BACKEND_URL = os.environ.get("SPOTISNAKE_BACKEND_URL", "https://spotisnake.onrender.com")
 print(f"DEBUG: spotipy_handling.py - Using backend URL: {BACKEND_URL}")
 
-# Create a session with proper cookie handling
-session = requests.Session()
-session.headers.update({
-    'User-Agent': 'SpotiSnake/1.0',
-    'Accept': 'application/json',
-    'Content-Type': 'application/json'
-})
+# Remove requests session for browser build
+# session = requests.Session()
+# session.headers.update({
+#     'User-Agent': 'SpotiSnake/1.0',
+#     'Accept': 'application/json',
+#     'Content-Type': 'application/json'
+# })
 
 clock = pygame.time.Clock()
 pygame.init()
@@ -47,27 +46,47 @@ def backend_login():
         return
     
     is_logging_in = True
-    try:
-        import webbrowser
-        login_url = f"{BACKEND_URL}/login"
-        print(f"DEBUG: spotipy_handling.py - Opening login URL: {login_url}")
-        webbrowser.open(login_url)
-    except Exception as e:
-        print(f"DEBUG: spotipy_handling.py - Error opening browser: {e}")
-        is_logging_in = False
+    login_url = f"{BACKEND_URL}/login"
+    print(f"DEBUG: spotipy_handling.py - Opening login URL: {login_url}")
 
-def check_authenticated():
-    """Checks if the user is authenticated with Spotify."""
+    try:
+        import js  # Only available in Pyodide/Pygbag
+        js.window.open(login_url, "_blank")
+        print("DEBUG: spotipy_handling.py - Opened login URL in browser (js.window.open)")
+    except ImportError:
+        # Fallback for desktop Python
+        try:
+            import webbrowser
+            webbrowser.open(login_url)
+            print("DEBUG: spotipy_handling.py - Opened login URL in desktop browser (webbrowser.open)")
+        except Exception as e:
+            print(f"DEBUG: spotipy_handling.py - Error opening browser: {e}")
+            is_logging_in = False
+
+def is_pyodide():
+    try:
+        import js
+        return True
+    except ImportError:
+        return False
+
+async def check_authenticated():
     global is_logging_in
     print("DEBUG: spotipy_handling.py - check_authenticated called")
+    url = f"{BACKEND_URL}/me"
+    print(f"DEBUG: spotipy_handling.py - Checking auth at {url}")
+    import json
     try:
-        resp = session.get(f"{BACKEND_URL}/me")
-        print(f"DEBUG: spotipy_handling.py - /me response status: {resp.status_code}")
-        
-        if resp.status_code == 200 and resp.json().get("id"):
-            print("DEBUG: spotipy_handling.py - Authentication successful")
-            is_logging_in = False  # Reset login state on success
-            return True
+        from pyodide_http import pyfetch
+        response = await pyfetch(url, method="GET")
+        if response.status == 200:
+            text = await response.string()
+            data = json.loads(text)
+            print(f"DEBUG: spotipy_handling.py - /me response: {data}")
+            if data.get('id'):
+                print("DEBUG: spotipy_handling.py - Authentication successful")
+                is_logging_in = False
+                return True
         print("DEBUG: spotipy_handling.py - Authentication failed")
         return False
     except Exception as e:
@@ -76,105 +95,45 @@ def check_authenticated():
 
 def search_album(query):
     print(f"DEBUG: spotipy_handling.py - search_album called with query: {query}")
-    try:
-        resp = session.get(f"{BACKEND_URL}/search", params={"q": query})
-        print(f"DEBUG: spotipy_handling.py - Search response status: {resp.status_code}")
-        if resp.status_code == 200:
-            results = resp.json()
-            print(f"DEBUG: spotipy_handling.py - Found {len(results.get('albums', {}).get('items', []))} albums")
-            return results
-        print(f"DEBUG: spotipy_handling.py - Search failed with status: {resp.status_code}")
-        return None
-    except Exception as e:
-        print(f"DEBUG: spotipy_handling.py - Exception in search_album: {e}")
-        return None
+    # In browser, this should be handled by backend API call
+    print("DEBUG: spotipy_handling.py - search_album should be handled by backend in browser build")
+    return None
 
 def play_track(uri, device_id=None, position_ms=0):
     print(f"DEBUG: spotipy_handling.py - play_track called with uri: {uri}, device_id: {device_id}, position_ms: {position_ms}")
-    try:
-        data = {"uri": uri, "position_ms": position_ms}
-        if device_id:
-            data["device_id"] = device_id
-        resp = session.post(f"{BACKEND_URL}/play", json=data)
-        print(f"DEBUG: spotipy_handling.py - Play response status: {resp.status_code}")
-        success = resp.status_code == 200
-        print(f"DEBUG: spotipy_handling.py - Play {'successful' if success else 'failed'}")
-        return success
-    except Exception as e:
-        print(f"DEBUG: spotipy_handling.py - Exception in play_track: {e}")
-        return False
+    # In browser, this should be handled by backend API call
+    print("DEBUG: spotipy_handling.py - play_track should be handled by backend in browser build")
+    return False
 
 def pause_playback(device_id=None):
     print(f"DEBUG: spotipy_handling.py - pause_playback called with device_id: {device_id}")
-    try:
-        data = {}
-        if device_id:
-            data["device_id"] = device_id
-        resp = session.post(f"{BACKEND_URL}/pause", json=data)
-        print(f"DEBUG: spotipy_handling.py - Pause response status: {resp.status_code}")
-        success = resp.status_code == 200
-        print(f"DEBUG: spotipy_handling.py - Pause {'successful' if success else 'failed'}")
-        return success
-    except Exception as e:
-        print(f"DEBUG: spotipy_handling.py - Exception in pause_playback: {e}")
-        return False
+    # In browser, this should be handled by backend API call
+    print("DEBUG: spotipy_handling.py - pause_playback should be handled by backend in browser build")
+    return False
 
 def get_devices():
     print("DEBUG: spotipy_handling.py - get_devices called")
-    try:
-        resp = session.get(f"{BACKEND_URL}/devices")
-        print(f"DEBUG: spotipy_handling.py - Devices response status: {resp.status_code}")
-        if resp.status_code == 200:
-            devices = resp.json()
-            print(f"DEBUG: spotipy_handling.py - Found {len(devices.get('devices', []))} devices")
-            return devices
-        print(f"DEBUG: spotipy_handling.py - Get devices failed with status: {resp.status_code}")
-        return None
-    except Exception as e:
-        print(f"DEBUG: spotipy_handling.py - Exception in get_devices: {e}")
-        return None
+    # In browser, this should be handled by backend API call
+    print("DEBUG: spotipy_handling.py - get_devices should be handled by backend in browser build")
+    return None
 
 def get_current_playback():
     print("DEBUG: spotipy_handling.py - get_current_playback called")
-    try:
-        resp = session.get(f"{BACKEND_URL}/currently_playing")
-        print(f"DEBUG: spotipy_handling.py - Current playback response status: {resp.status_code}")
-        if resp.status_code == 200:
-            return resp.json()
-        print(f"DEBUG: spotipy_handling.py - Get current playback failed with status: {resp.status_code}")
-        return None
-    except Exception as e:
-        print(f"DEBUG: spotipy_handling.py - Exception in get_current_playback: {e}")
-        return None
+    # In browser, this should be handled by backend API call
+    print("DEBUG: spotipy_handling.py - get_current_playback should be handled by backend in browser build")
+    return None
 
 def get_album_tracks(album_id):
     print(f"DEBUG: spotipy_handling.py - get_album_tracks called with album_id: {album_id}")
-    try:
-        resp = session.get(f"{BACKEND_URL}/album_tracks", params={"album_id": album_id})
-        print(f"DEBUG: spotipy_handling.py - Album tracks response status: {resp.status_code}")
-        if resp.status_code == 200:
-            tracks = resp.json()
-            print(f"DEBUG: spotipy_handling.py - Found {len(tracks.get('items', []))} tracks")
-            return tracks
-        print(f"DEBUG: spotipy_handling.py - Get album tracks failed with status: {resp.status_code}")
-        return None
-    except Exception as e:
-        print(f"DEBUG: spotipy_handling.py - Exception in get_album_tracks: {e}")
-        return None
+    # In browser, this should be handled by backend API call
+    print("DEBUG: spotipy_handling.py - get_album_tracks should be handled by backend in browser build")
+    return None
 
 def download_and_resize_album_cover(url, target_width, target_height):
     print(f"DEBUG: spotipy_handling.py - download_and_resize_album_cover called with url: {url}")
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        img_data = BytesIO(response.content)
-        image = pygame.image.load(img_data)
-        image = pygame.transform.scale(image, (target_width, target_height))
-        print(f"DEBUG: spotipy_handling.py - Album cover loaded and resized to {target_width}x{target_height}")
-        return image
-    except Exception as e:
-        print(f"DEBUG: spotipy_handling.py - Exception in download_and_resize_album_cover: {e}")
-        return None
+    # In browser, album covers must be pre-bundled or loaded from local assets
+    print("DEBUG: spotipy_handling.py - download_and_resize_album_cover should use local assets in browser build")
+    return None
 
 def get_spotify_device():
     global device_id_cache
