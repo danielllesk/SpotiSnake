@@ -1,6 +1,6 @@
 import os
 from flask import Flask, request, jsonify, session, redirect
-from flask_cors import CORS
+from flask_cors import CORS, cross_origin
 from spotipy.oauth2 import SpotifyPKCE
 import spotipy
 from shared_constants import *
@@ -18,7 +18,15 @@ CORS(app, supports_credentials=True, origins=[
     "http://localhost:8001",
     "http://127.0.0.1:8001",
     "http://[::]:8001"
-])
+], allow_headers=["Content-Type", "Authorization"], methods=["GET", "POST", "OPTIONS"])
+
+print("DEBUG: backend.py - CORS config applied with credentials and local dev origins")
+
+# Add a catch-all OPTIONS handler for CORS preflight
+@app.route('/<path:path>', methods=['OPTIONS'])
+def catch_all_options(path):
+    print(f"DEBUG: backend.py - OPTIONS preflight for /{path}")
+    return ('', 204)
 
 print("DEBUG: backend.py - Setting up Spotify PKCE authentication")
 sp_oauth = SpotifyPKCE(
