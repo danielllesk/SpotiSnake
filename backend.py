@@ -10,12 +10,15 @@ print("DEBUG: backend.py - Starting Flask backend initialization")
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
 
-# Configure CORS to allow credentials and specific origins
-CORS(app, 
-     supports_credentials=True,
-     origins=["http://127.0.0.1:8000", "http://localhost:8000", "http://127.0.0.1:3000", "http://localhost:3000"],
-     allow_headers=["Content-Type", "Authorization"],
-     methods=["GET", "POST", "OPTIONS"])
+# Allow credentials and local dev origins for browser testing
+CORS(app, supports_credentials=True, origins=[
+    "http://localhost:8000",
+    "http://127.0.0.1:8000",
+    "http://[::]:8000",
+    "http://localhost:8001",
+    "http://127.0.0.1:8001",
+    "http://[::]:8001"
+])
 
 print("DEBUG: backend.py - Setting up Spotify PKCE authentication")
 sp_oauth = SpotifyPKCE(
@@ -82,7 +85,7 @@ def callback():
     print(f"DEBUG: backend.py - Received auth code: {code[:10]}...")
     
     try:
-        token_info = sp_oauth.get_access_token(code)
+    token_info = sp_oauth.get_access_token(code)
         print(f"DEBUG: backend.py - Raw token_info: {token_info}")
         print(f"DEBUG: backend.py - Token_info type: {type(token_info)}")
         # If token_info is a string, wrap it in a dict
