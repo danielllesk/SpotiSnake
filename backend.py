@@ -10,17 +10,12 @@ print("DEBUG: backend.py - Starting Flask backend initialization")
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
 
-# Allow credentials and local dev origins for browser testing
+# Allow credentials and ONLY http://localhost:8000 for browser testing
 CORS(app, supports_credentials=True, origins=[
-    "http://localhost:8000",
-    "http://127.0.0.1:8000",
-    "http://[::]:8000",
-    "http://localhost:8001",
-    "http://127.0.0.1:8001",
-    "http://[::]:8001"
+    "http://localhost:8000"
 ], allow_headers=["Content-Type", "Authorization"], methods=["GET", "POST", "OPTIONS"])
 
-print("DEBUG: backend.py - CORS config applied with credentials and local dev origins")
+print("DEBUG: backend.py - CORS config applied for http://localhost:8000 only")
 
 # Add a catch-all OPTIONS handler for CORS preflight
 @app.route('/<path:path>', methods=['OPTIONS'])
