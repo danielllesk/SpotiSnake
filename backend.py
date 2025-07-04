@@ -85,7 +85,7 @@ def callback():
     print(f"DEBUG: backend.py - Received auth code: {code[:10]}...")
     
     try:
-    token_info = sp_oauth.get_access_token(code)
+        token_info = sp_oauth.get_access_token(code)
         print(f"DEBUG: backend.py - Raw token_info: {token_info}")
         print(f"DEBUG: backend.py - Token_info type: {type(token_info)}")
         # If token_info is a string, wrap it in a dict
