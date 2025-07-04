@@ -1,6 +1,7 @@
 import pygame
 import os
 import sys
+import time
 
 def resource_path(relative_path):
     try:
@@ -51,7 +52,20 @@ OUTLINE_COLOR = BLACK
 OUTLINE_THICKNESS = 2 
 
 # Game backgrounds (load by filename only for browser compatibility)
-game_bg = pygame.image.load('background.png')
-game_bg = pygame.transform.scale(game_bg, (width, height))
-start_menu_bg = pygame.image.load('SpotipyStart.png')
-start_menu_bg = pygame.transform.scale(start_menu_bg, (width, height))
+print("DEBUG: shared_constants.py - Starting to load background images")
+
+def load_image_simple(filename):
+    """Load an image with simple error handling"""
+    try:
+        print(f"DEBUG: shared_constants.py - Loading {filename}")
+        image = pygame.image.load(filename)
+        image = pygame.transform.scale(image, (width, height))
+        print(f"DEBUG: shared_constants.py - {filename} loaded successfully")
+        return image
+    except Exception as e:
+        print(f"DEBUG: shared_constants.py - Failed to load {filename}: {e}")
+        return None
+
+# Load images with simple error handling
+game_bg = load_image_simple('background.png')
+start_menu_bg = load_image_simple('SpotipyStart.png')

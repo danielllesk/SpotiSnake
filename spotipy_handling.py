@@ -8,6 +8,7 @@ import random
 import asyncio
 import os
 import time
+import js
 print("DEBUG: spotipy_handling.py - All imports completed")
 
 # Use deployed backend URL for production
@@ -30,6 +31,9 @@ USER_ABORT_GAME_FROM_SEARCH = "USER_ABORT_GAME_FROM_SEARCH"
 # Global state to prevent multiple login attempts
 is_logging_in = False
 
+# Local testing flag - set to True to bypass authentication for local testing
+LOCAL_TESTING_MODE = False  # Set to False for production
+
 device_id_cache = None  # Cache for Spotify device ID
 
 def clear_device_id_cache():
@@ -51,8 +55,12 @@ def backend_login():
 
     try:
         import js  # Only available in Pyodide/Pygbag
-        js.window.open(login_url, "_blank")
-        print("DEBUG: spotipy_handling.py - Opened login URL in browser (js.window.open)")
+        if hasattr(js, 'window'):
+            js.window.open(login_url, "_blank")
+            print("DEBUG: spotipy_handling.py - Opened login URL in browser (js.window.open)")
+        else:
+            print("DEBUG: spotipy_handling.py - js module available but no window attribute")
+            is_logging_in = False
     except ImportError:
         # Fallback for desktop Python
         try:
@@ -66,32 +74,54 @@ def backend_login():
 def is_pyodide():
     try:
         import js
-        return True
+        return hasattr(js, 'window')
     except ImportError:
         return False
 
-async def check_authenticated():
-    global is_logging_in
-    print("DEBUG: spotipy_handling.py - check_authenticated called")
-    url = f"{BACKEND_URL}/me"
-    print(f"DEBUG: spotipy_handling.py - Checking auth at {url}")
+# Helper to await JS Promises in Pygbag/Pyodide
+import types
+
+def await_js_promise(promise):
+    # Try to use __await__ if available, else fallback to just returning the promise
+    if hasattr(promise, '__await__'):
+        return promise
+    # Fallback: just return the promise (may work in some environments)
+    return promise
+
+# Expose a Python callback for JS to call with the auth result
+def handle_auth_result(result_json):
     import json
-    try:
-        from pyodide_http import pyfetch
-        response = await pyfetch(url, method="GET")
-        if response.status == 200:
-            text = await response.string()
-            data = json.loads(text)
-            print(f"DEBUG: spotipy_handling.py - /me response: {data}")
-            if data.get('id'):
-                print("DEBUG: spotipy_handling.py - Authentication successful")
-                is_logging_in = False
-                return True
-        print("DEBUG: spotipy_handling.py - Authentication failed")
-        return False
-    except Exception as e:
-        print(f"DEBUG: spotipy_handling.py - Exception in check_authenticated: {e}")
-        return False
+    print(f"DEBUG: spotipy_handling.py - handle_auth_result called with: {result_json}")
+    data = json.loads(result_json)
+    global is_logging_in
+    if data.get('id'):
+        print("DEBUG: spotipy_handling.py - Authentication successful (callback)")
+        is_logging_in = False
+        js.auth_success = True
+    else:
+        print("DEBUG: spotipy_handling.py - Authentication failed (callback)")
+        js.auth_success = False
+
+js.window.handle_auth_result = handle_auth_result  # Attach to window explicitly
+js.auth_success = False
+
+def check_authenticated():
+    print("DEBUG: spotipy_handling.py - check_authenticated called (JS callback version)")
+    url = f"{BACKEND_URL}/me"
+    js_code = f'''
+    console.log("JS: Starting fetch for auth check");
+    fetch("{url}", {{
+        method: "GET",
+        credentials: "include"
+    }})
+    .then(response => response.text())
+    .then(text => {{
+        console.log("JS: Fetched text:", text);
+        window.handle_auth_result(text);
+    }});
+    '''
+    js.eval(js_code)
+    return js.auth_success
 
 def search_album(query):
     print(f"DEBUG: spotipy_handling.py - search_album called with query: {query}")
