@@ -97,22 +97,8 @@ def callback():
         user_info = sp.current_user()
         print(f"DEBUG: backend.py - User authenticated: {user_info.get('id', 'unknown')}")
         
-        return """
-        <html>
-            <head><title>Login Successful</title></head>
-            <body>
-                <h1>Login Successful!</h1>
-                <p>You can close this tab and return to the game.</p>
-                <p>If the game doesn't recognize your login, try refreshing the game.</p>
-                <script>
-                    // Auto-close after 3 seconds
-                    setTimeout(function() {
-                        window.close();
-                    }, 3000);
-                </script>
-            </body>
-        </html>
-        """
+        # Redirect back to the game (update URL if needed)
+        return redirect("http://localhost:8000")
     except Exception as e:
         print(f"DEBUG: backend.py - Error in callback: {e}")
         import traceback
