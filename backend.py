@@ -9,9 +9,9 @@ print("DEBUG: backend.py - Starting Flask backend initialization")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
-CORS(app)  # This will allow all origins (for dev only!)
+CORS(app, supports_credentials=True)  # This is the key for cookies/auth with CORS!
 # For production, use:
-# CORS(app, origins=["http://127.0.0.1:8000", "http://localhost:8000", "https://yourgame.com"])
+# CORS(app, supports_credentials=True, origins=["http://127.0.0.1:8000", "http://localhost:8000", "https://yourgame.com"])
 
 # Add a catch-all OPTIONS handler for CORS preflight
 @app.route('/<path:path>', methods=['OPTIONS'])
