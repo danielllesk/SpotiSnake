@@ -29,21 +29,21 @@ sp_oauth = SpotifyPKCE(
 )
 
 # Global token storage (in production, use a proper database)
-global_token_info = None
+# global_token_info = None
 
 def get_spotify():
     print("DEBUG: backend.py - get_spotify() called")
-    global global_token_info
-    if not global_token_info:
-        print("DEBUG: backend.py - No token_info available")
+    token_info = session.get('token_info')
+    if not token_info:
+        print("DEBUG: backend.py - No token_info available (session)")
         return None
     
-    print(f"DEBUG: backend.py - Token info type: {type(global_token_info)}")
-    print(f"DEBUG: backend.py - Token info: {global_token_info}")
+    print(f"DEBUG: backend.py - Token info type: {type(token_info)}")
+    print(f"DEBUG: backend.py - Token info: {token_info}")
     
     try:
-        if isinstance(global_token_info, dict) and 'access_token' in global_token_info:
-            access_token = global_token_info['access_token']
+        if isinstance(token_info, dict) and 'access_token' in token_info:
+            access_token = token_info['access_token']
         else:
             print("DEBUG: backend.py - Invalid token_info structure")
             return None
@@ -79,7 +79,6 @@ def login():
 @app.route('/callback')
 def callback():
     print("DEBUG: backend.py - /callback endpoint called")
-    global global_token_info
     code = request.args.get('code')
     print(f"DEBUG: backend.py - Received auth code: {code[:10]}...")
     
@@ -90,8 +89,8 @@ def callback():
         # If token_info is a string, wrap it in a dict
         if isinstance(token_info, str):
             token_info = {'access_token': token_info}
-        global_token_info = token_info
-        print("DEBUG: backend.py - Token stored globally")
+        session['token_info'] = token_info
+        print("DEBUG: backend.py - Token stored in session")
         
         # Test the token immediately
         sp = spotipy.Spotify(auth=token_info['access_token'])
