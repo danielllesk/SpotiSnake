@@ -144,6 +144,12 @@ def search():
     print(f"DEBUG: backend.py - Found {len(results.get('albums', {}).get('items', []))} albums")
     return jsonify(results)
 
+@app.route('/play', methods=['GET'])
+def play_get_debug():
+    print("DEBUG: backend.py - /play GET called (should not happen!)")
+    print(f"DEBUG: backend.py - Request headers: {dict(request.headers)}")
+    return "GET not allowed on /play", 405
+
 @app.route('/play', methods=['POST'])
 def play():
     print("DEBUG: backend.py - /play endpoint called")
