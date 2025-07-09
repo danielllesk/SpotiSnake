@@ -96,10 +96,33 @@ def callback():
         sp = spotipy.Spotify(auth=token_info['access_token'])
         user_info = sp.current_user()
         print(f"DEBUG: backend.py - User authenticated: {user_info.get('id', 'unknown')}")
-        # Redirect back to the game with success parameter
-        game_url = "http://localhost:8000?login=success"
-        print(f"DEBUG: backend.py - Redirecting to game: {game_url}")
-        return redirect(game_url)
+        
+        # Show a success page with debug info before redirecting
+        return f"""
+        <html>
+            <head><title>Login Successful</title></head>
+            <body style="background: #1db954; color: white; font-family: Arial; text-align: center; padding: 50px;">
+                <h1>✅ Login Successful!</h1>
+                <p>User: {user_info.get('display_name', 'Unknown')}</p>
+                <p>Email: {user_info.get('email', 'Unknown')}</p>
+                <p>Product: {user_info.get('product', 'Unknown')}</p>
+                <p>Redirecting back to game in 3 seconds...</p>
+                <div id="debug" style="background: #000; color: #0f0; padding: 10px; margin: 20px; text-align: left; font-family: monospace;">
+                    <strong>Debug Info:</strong><br>
+                    - Token stored in session<br>
+                    - User authenticated successfully<br>
+                    - Session cookie should be set<br>
+                    - Redirecting to game with #debug fragment
+                </div>
+                <script>
+                    // Redirect back to game with #debug preserved
+                    setTimeout(function() {{
+                        window.location.href = "http://localhost:8000#debug";
+                    }}, 3000);
+                </script>
+            </body>
+        </html>
+        """
     except Exception as e:
         print(f"DEBUG: backend.py - Error in callback: {e}")
         import traceback
@@ -185,6 +208,47 @@ def currently_playing():
     current = sp.current_playback()
     print(f"DEBUG: backend.py - Current playback: {current.get('item', {}).get('name', 'none') if current else 'none'}")
     return jsonify(current)
+
+@app.route('/debug')
+def debug_page():
+    print("DEBUG: backend.py - /debug page called")
+    token_info = session.get('token_info')
+    has_token = token_info is not None
+    
+    return f"""
+    <html>
+        <head><title>SpotiSnake Debug</title></head>
+        <body style="background: #1a1a1a; color: #fff; font-family: monospace; padding: 20px;">
+            <h1>🔧 SpotiSnake Debug Page</h1>
+            
+            <h2>Session Status:</h2>
+            <div style="background: #333; padding: 10px; margin: 10px 0;">
+                <strong>Has Token:</strong> {'✅ Yes' if has_token else '❌ No'}<br>
+                <strong>Token Type:</strong> {type(token_info).__name__ if token_info else 'None'}<br>
+                <strong>Has Access Token:</strong> {'✅ Yes' if has_token and isinstance(token_info, dict) and 'access_token' in token_info else '❌ No'}
+            </div>
+            
+            <h2>Test Endpoints:</h2>
+            <div style="background: #333; padding: 10px; margin: 10px 0;">
+                <a href="/me" style="color: #1db954;">🔍 Test /me endpoint</a><br>
+                <a href="/devices" style="color: #1db954;">🔍 Test /devices endpoint</a><br>
+                <a href="/currently_playing" style="color: #1db954;">🔍 Test /currently_playing endpoint</a><br>
+                <a href="/debug_session" style="color: #1db954;">🔍 Test /debug_session endpoint</a>
+            </div>
+            
+            <h2>Actions:</h2>
+            <div style="background: #333; padding: 10px; margin: 10px 0;">
+                <a href="/login" style="color: #1db954;">🔑 Login to Spotify</a><br>
+                <a href="http://localhost:8000#debug" style="color: #1db954;">🎮 Go to Game</a>
+            </div>
+            
+            <h2>Backend Logs:</h2>
+            <div style="background: #000; color: #0f0; padding: 10px; margin: 10px 0; height: 200px; overflow-y: scroll;">
+                Check your backend console for debug output...
+            </div>
+        </body>
+    </html>
+    """
 
 @app.route('/debug_session')
 def debug_session():
