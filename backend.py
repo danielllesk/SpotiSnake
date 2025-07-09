@@ -96,9 +96,10 @@ def callback():
         sp = spotipy.Spotify(auth=token_info['access_token'])
         user_info = sp.current_user()
         print(f"DEBUG: backend.py - User authenticated: {user_info.get('id', 'unknown')}")
-        
-        # Redirect back to the game (update URL if needed)
-        return redirect("http://localhost:8000")
+        # Redirect back to the game with success parameter
+        game_url = "http://localhost:8000?login=success"
+        print(f"DEBUG: backend.py - Redirecting to game: {game_url}")
+        return redirect(game_url)
     except Exception as e:
         print(f"DEBUG: backend.py - Error in callback: {e}")
         import traceback
@@ -184,6 +185,21 @@ def currently_playing():
     current = sp.current_playback()
     print(f"DEBUG: backend.py - Current playback: {current.get('item', {}).get('name', 'none') if current else 'none'}")
     return jsonify(current)
+
+@app.route('/debug_session')
+def debug_session():
+    print("DEBUG: backend.py - /debug_session endpoint called")
+    token_info = session.get('token_info')
+    if token_info:
+        print("DEBUG: backend.py - Session has token_info")
+        return jsonify({
+            'has_token': True,
+            'token_type': type(token_info).__name__,
+            'has_access_token': 'access_token' in token_info if isinstance(token_info, dict) else False
+        })
+    else:
+        print("DEBUG: backend.py - Session has no token_info")
+        return jsonify({'has_token': False})
 
 @app.route('/album_tracks')
 def album_tracks():
