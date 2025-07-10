@@ -81,7 +81,6 @@ def callback():
     print("DEBUG: backend.py - /callback endpoint called")
     code = request.args.get('code')
     print(f"DEBUG: backend.py - Received auth code: {code[:10]}...")
-    
     try:
         token_info = sp_oauth.get_access_token(code)
         print(f"DEBUG: backend.py - Raw token_info: {token_info}")
@@ -91,35 +90,75 @@ def callback():
             token_info = {'access_token': token_info}
         session['token_info'] = token_info
         print("DEBUG: backend.py - Token stored in session")
-        
         # Test the token immediately
         sp = spotipy.Spotify(auth=token_info['access_token'])
         user_info = sp.current_user()
         print(f"DEBUG: backend.py - User authenticated: {user_info.get('id', 'unknown')}")
-        
-        # Show a success page with debug info before redirecting
+        # Show a visually appealing static login success page
         return f"""
         <html>
-            <head><title>Login Successful</title></head>
-            <body style="background: #1db954; color: white; font-family: Arial; text-align: center; padding: 50px;">
-                <h1>✅ Login Successful!</h1>
-                <p>User: {user_info.get('display_name', 'Unknown')}</p>
-                <p>Email: {user_info.get('email', 'Unknown')}</p>
-                <p>Product: {user_info.get('product', 'Unknown')}</p>
-                <p>Redirecting back to game in 3 seconds...</p>
-                <div id="debug" style="background: #000; color: #0f0; padding: 10px; margin: 20px; text-align: left; font-family: monospace;">
-                    <strong>Debug Info:</strong><br>
-                    - Token stored in session<br>
-                    - User authenticated successfully<br>
-                    - Session cookie should be set<br>
-                    - Redirecting to game with #debug fragment
+            <head>
+                <title>Login Successful</title>
+                <meta name='viewport' content='width=device-width, initial-scale=1'>
+                <style>
+                    body {{
+                        background: linear-gradient(135deg, #1db954 0%, #191414 100%);
+                        color: #fff;
+                        font-family: 'Segoe UI', Arial, sans-serif;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        justify-content: center;
+                        height: 100vh;
+                        margin: 0;
+                    }}
+                    .card {{
+                        background: rgba(0,0,0,0.7);
+                        border-radius: 16px;
+                        padding: 40px 30px 30px 30px;
+                        box-shadow: 0 8px 32px 0 rgba(0,0,0,0.37);
+                        text-align: center;
+                        max-width: 400px;
+                    }}
+                    .checkmark {{
+                        font-size: 60px;
+                        color: #1db954;
+                        margin-bottom: 10px;
+                    }}
+                    .user-info {{
+                        margin: 20px 0 10px 0;
+                        font-size: 1.1em;
+                        color: #b3b3b3;
+                    }}
+                    .return-msg {{
+                        margin-top: 20px;
+                        font-size: 1.2em;
+                        color: #fff;
+                    }}
+                    .close-msg {{
+                        margin-top: 10px;
+                        font-size: 1em;
+                        color: #b3b3b3;
+                    }}
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <div class="checkmark">✅</div>
+                    <h1>Login Successful!</h1>
+                    <div class="user-info">
+                        <strong>User:</strong> {user_info.get('display_name', 'Unknown')}<br>
+                        <strong>Email:</strong> {user_info.get('email', 'Unknown')}<br>
+                        <strong>Product:</strong> {user_info.get('product', 'Unknown')}
+                    </div>
+                    <div class="return-msg">
+                        You can now return to the game tab.<br>
+                        <span style='font-size:0.9em;'>If the game doesn't detect your login, click 'Check Login' or refresh the game tab.</span>
+                    </div>
+                    <div class="close-msg">
+                        This tab can be closed.
+                    </div>
                 </div>
-                <script>
-                    // Redirect back to game with #debug preserved
-                    setTimeout(function() {{
-                        window.location.href = "http://localhost:8000#debug";
-                    }}, 3000);
-                </script>
             </body>
         </html>
         """
