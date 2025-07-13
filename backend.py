@@ -13,9 +13,12 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
 # --- CORS and Session Cookie Config for Cross-Origin Auth ---
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Allow cross-site cookies
 app.config['SESSION_COOKIE_SECURE'] = True      # Required for SameSite=None (must use HTTPS)
+
+# More permissive for local development
 CORS(app, supports_credentials=True, origins=[
-    "http://[::]:8000/#debug", # local dev
-    "http://localhost:8000",  # Local dev 2
+    "http://localhost:*",      # Any localhost port
+    "http://127.0.0.1:*",     # Any IPv4 localhost port  
+    "http://[::]:*",          # Any IPv6 localhost port
     "https://spotisnake.onrender.com",  # Deployed backend
     "https://YOUR_FRONTEND_DOMAIN"  # Add your deployed frontend domain here
 ])
