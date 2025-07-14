@@ -14,14 +14,21 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Allow cross-site cookies
 app.config['SESSION_COOKIE_SECURE'] = True      # Required for SameSite=None (must use HTTPS)
 
-# More permissive for local development
-CORS(app, supports_credentials=True, origins=[
-    "http://localhost:*",      # Any localhost port
-    "http://127.0.0.1:*",     # Any IPv4 localhost port  
-    "http://[::]:*",          # Any IPv6 localhost port
-    "https://spotisnake.onrender.com",  # Deployed backend
-    "https://YOUR_FRONTEND_DOMAIN"  # Add your deployed frontend domain here
-])
+# Explicit origins for development and production
+CORS(app, supports_credentials=True, 
+     origins=[
+         "http://localhost:8000",      # Pygbag default
+         "http://127.0.0.1:8000",     # Pygbag IPv4
+         "http://[::]:8000",          # Pygbag IPv6
+         "http://localhost:3000",      # Common dev server
+         "http://127.0.0.1:3000",     # Common dev server IPv4
+         "http://localhost:5173",      # Vite default
+         "http://127.0.0.1:5173",     # Vite IPv4
+         "https://spotisnake.onrender.com",  # Deployed backend
+         "https://YOUR_FRONTEND_DOMAIN"  # Add your deployed frontend domain here
+     ],
+     allow_headers=["Content-Type", "Authorization"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 # ----------------------------------------------------------
 
 # Add a catch-all OPTIONS handler for CORS preflight
