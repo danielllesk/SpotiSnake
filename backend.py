@@ -14,7 +14,7 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Allow cross-site cookies
 app.config['SESSION_COOKIE_SECURE'] = True      # Required for SameSite=None (must use HTTPS)
 
-# Explicit origins for local dev (http.server, Pygbag, React, Vite) and production
+# Explicit origins for local dev, production, and itch.io
 CORS(app, supports_credentials=True, 
      origins=[
          "https://localhost:8000",      # HTTPS localhost
@@ -24,6 +24,8 @@ CORS(app, supports_credentials=True,
          "http://127.0.0.1:8000",      # HTTP IPv4 (legacy)
          "http://[::1]:8000",          # HTTP IPv6 (legacy)
          "https://spotisnake.onrender.com",  # Deployed backend
+         "https://danielllesk.itch.io",      # itch.io deployment
+         "https://danielllesk.itch.io/spotisnake", # itch.io game page
          "https://YOUR_FRONTEND_DOMAIN"      # Your deployed frontend
      ],
      allow_headers=["Content-Type", "Authorization"],
