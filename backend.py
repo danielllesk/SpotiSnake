@@ -17,13 +17,12 @@ app.config['SESSION_COOKIE_SECURE'] = True      # Required for SameSite=None (mu
 # Explicit origins for local dev (http.server, Pygbag, React, Vite) and production
 CORS(app, supports_credentials=True, 
      origins=[
-         "http://localhost:8000",      # Pygbag default, http.server default
-         "http://127.0.0.1:8000",      # IPv4
-         "http://[::]:8000",           # IPv6
-         "http://localhost:3000",      # React dev
-         "http://127.0.0.1:3000",      # React dev IPv4
-         "http://localhost:5173",      # Vite dev
-         "http://127.0.0.1:5173",      # Vite dev IPv4
+         "https://localhost:8000",      # HTTPS localhost
+         "https://127.0.0.1:8000",      # HTTPS IPv4
+         "https://[::1]:8000",          # HTTPS IPv6
+         "http://localhost:8000",      # HTTP localhost (legacy)
+         "http://127.0.0.1:8000",      # HTTP IPv4 (legacy)
+         "http://[::1]:8000",          # HTTP IPv6 (legacy)
          "https://spotisnake.onrender.com",  # Deployed backend
          "https://YOUR_FRONTEND_DOMAIN"      # Your deployed frontend
      ],
