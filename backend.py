@@ -14,30 +14,47 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
 app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Allow cross-site cookies
 app.config['SESSION_COOKIE_SECURE'] = True      # Required for SameSite=None (must use HTTPS)
 
-# Explicit origins for local dev, production, and itch.io (including itch.io CDN)
+# More comprehensive origins list including all localhost variants
 CORS(app, supports_credentials=True, 
      origins=[
-         "https://localhost:8000",      # HTTPS localhost
-         "https://127.0.0.1:8000",      # HTTPS IPv4
-         "https://[::1]:8000",          # HTTPS IPv6
-         "http://localhost:8000",      # HTTP localhost (legacy)
-         "http://127.0.0.1:8000",      # HTTP IPv4 (legacy)
-         "http://[::1]:8000",          # HTTP IPv6 (legacy)
-         "https://spotisnake.onrender.com",  # Deployed backend
-         "https://danielllesk.itch.io",      # itch.io deployment
-         "https://danielllesk.itch.io/spotisnake", # itch.io game page
-         "https://html-classic.itch.zone",   # itch.io HTML5 CDN
-         "https://YOUR_FRONTEND_DOMAIN"      # Your deployed frontend
+         # HTTPS variants
+         "https://localhost:8000",
+         "https://127.0.0.1:8000", 
+         "https://[::1]:8000",
+         "https://[::]:8000",
+         # HTTP variants (for local development)
+         "http://localhost:8000",
+         "http://127.0.0.1:8000", 
+         "http://[::1]:8000",
+         "http://[::]:8000",
+         # Production domains
+         "https://spotisnake.onrender.com",
+         "https://danielllesk.itch.io",
+         "https://danielllesk.itch.io/spotisnake",
+         "https://html-classic.itch.zone",
+         "https://YOUR_FRONTEND_DOMAIN"
      ],
-     allow_headers=["Content-Type", "Authorization"],
+     allow_headers=["Content-Type", "Authorization", "Origin", "Accept"],
+     expose_headers=["Content-Type", "Authorization"],
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
-# ----------------------------------------------------------
+
+# Add CORS debugging middleware
+@app.before_request
+def log_request_info():
+    print(f"DEBUG: backend.py - Request: {request.method} {request.path}")
+    print(f"DEBUG: backend.py - Origin: {request.headers.get('Origin', 'No Origin')}")
+    print(f"DEBUG: backend.py - User-Agent: {request.headers.get('User-Agent', 'No User-Agent')}")
 
 # Add a catch-all OPTIONS handler for CORS preflight
 @app.route('/<path:path>', methods=['OPTIONS'])
 def catch_all_options(path):
     print(f"DEBUG: backend.py - OPTIONS preflight for /{path}")
-    return ('', 204)
+    response = ('', 204)
+    response.headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept'
+    return response
 
 print("DEBUG: backend.py - Setting up Spotify PKCE authentication")
 sp_oauth = SpotifyPKCE(
@@ -194,10 +211,16 @@ def me():
     sp = get_spotify()
     if not sp:
         print("DEBUG: backend.py - Not authenticated for /me")
-        return jsonify({'error': 'Not authenticated'}), 401
+        response = jsonify({'error': 'Not authenticated'}), 401
+        response[0].headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
+        response[0].headers['Access-Control-Allow-Credentials'] = 'true'
+        return response
     user_info = sp.current_user()
     print(f"DEBUG: backend.py - User info retrieved: {user_info.get('id', 'unknown')}")
-    return jsonify(user_info)
+    response = jsonify(user_info)
+    response.headers['Access-Control-Allow-Origin'] = request.headers.get('Origin', '*')
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    return response
 
 @app.route('/search')
 def search():
