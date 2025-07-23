@@ -45,16 +45,6 @@ CORS(app, supports_credentials=True,
      expose_headers=["Content-Type", "Authorization"],
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
-# Helper function to add CORS headers
-def add_cors_headers(response):
-    """Add CORS headers to a response"""
-    origin = request.headers.get('Origin', '*')
-    response.headers['Access-Control-Allow-Origin'] = origin
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept'
-    return response
-
 # Add CORS debugging middleware
 @app.before_request
 def log_request_info():
@@ -229,11 +219,11 @@ def me():
     if not sp:
         logging.debug("DEBUG: backend.py - Not authenticated for /me")
         response = jsonify({'error': 'Not authenticated'}), 401
-        return add_cors_headers(response[0])
+        return response
     user_info = sp.current_user()
     logging.debug(f"DEBUG: backend.py - User info retrieved: {user_info.get('id', 'unknown')}")
     response = jsonify(user_info)
-    return add_cors_headers(response)
+    return response
 
 @app.route('/search')
 def search():
@@ -242,20 +232,20 @@ def search():
     if not sp:
         logging.debug("DEBUG: backend.py - Not authenticated for /search")
         response = jsonify({'error': 'Not authenticated'}), 401
-        return add_cors_headers(response[0])
+        return response
     q = request.args.get('q')
     logging.debug(f"DEBUG: backend.py - Searching for: {q}")
     results = sp.search(q, type='album', limit=5)
     logging.debug(f"DEBUG: backend.py - Found {len(results.get('albums', {}).get('items', []))} albums")
     response = jsonify(results)
-    return add_cors_headers(response)
+    return response
 
 @app.route('/play', methods=['GET'])
 def play_get_debug():
     logging.debug("DEBUG: backend.py - /play GET called (should not happen!)")
     logging.debug(f"DEBUG: backend.py - Request headers: {dict(request.headers)}")
     response = "GET not allowed on /play", 405
-    return add_cors_headers(response[0])
+    return response
 
 @app.route('/play', methods=['POST'])
 def play():
@@ -264,7 +254,7 @@ def play():
     if not sp:
         logging.debug("DEBUG: backend.py - Not authenticated for /play")
         response = jsonify({'error': 'Not authenticated'}), 401
-        return add_cors_headers(response[0])
+        return response
     uri = request.json.get('uri')
     device_id = request.json.get('device_id')
     position_ms = request.json.get('position_ms', 0)
@@ -272,7 +262,7 @@ def play():
     sp.start_playback(device_id=device_id, uris=[uri] if uri else None, position_ms=position_ms)
     logging.debug("DEBUG: backend.py - Playback started successfully")
     response = jsonify({'status': 'playing'})
-    return add_cors_headers(response)
+    return response
 
 @app.route('/pause', methods=['POST'])
 def pause():
@@ -281,13 +271,13 @@ def pause():
     if not sp:
         logging.debug("DEBUG: backend.py - Not authenticated for /pause")
         response = jsonify({'error': 'Not authenticated'}), 401
-        return add_cors_headers(response[0])
+        return response
     device_id = request.json.get('device_id')
     logging.debug(f"DEBUG: backend.py - Pausing device: {device_id}")
     sp.pause_playback(device_id=device_id)
     logging.debug("DEBUG: backend.py - Playback paused successfully")
     response = jsonify({'status': 'paused'})
-    return add_cors_headers(response)
+    return response
 
 @app.route('/devices')
 def devices():
@@ -296,11 +286,11 @@ def devices():
     if not sp:
         logging.debug("DEBUG: backend.py - Not authenticated for /devices")
         response = jsonify({'error': 'Not authenticated'}), 401
-        return add_cors_headers(response[0])
+        return response
     devices_info = sp.devices()
     logging.debug(f"DEBUG: backend.py - Found {len(devices_info.get('devices', []))} devices")
     response = jsonify(devices_info)
-    return add_cors_headers(response)
+    return response
 
 @app.route('/currently_playing')
 def currently_playing():
@@ -309,11 +299,11 @@ def currently_playing():
     if not sp:
         logging.debug("DEBUG: backend.py - Not authenticated for /currently_playing")
         response = jsonify({'error': 'Not authenticated'}), 401
-        return add_cors_headers(response[0])
+        return response
     current = sp.current_playback()
     logging.debug(f"DEBUG: backend.py - Current playback: {current.get('item', {}).get('name', 'none') if current else 'none'}")
     response = jsonify(current)
-    return add_cors_headers(response)
+    return response
 
 @app.route('/debug')
 def debug_page():
@@ -367,11 +357,11 @@ def debug_session():
             'token_type': type(token_info).__name__,
             'has_access_token': 'access_token' in token_info if isinstance(token_info, dict) else False
         })
-        return add_cors_headers(response)
+        return response
     else:
         logging.debug("DEBUG: backend.py - Session has no token_info")
         response = jsonify({'has_token': False})
-        return add_cors_headers(response)
+        return response
 
 @app.route('/album_tracks')
 def album_tracks():
@@ -380,13 +370,13 @@ def album_tracks():
     if not sp:
         logging.debug("DEBUG: backend.py - Not authenticated for /album_tracks")
         response = jsonify({'error': 'Not authenticated'}), 401
-        return add_cors_headers(response[0])
+        return response
     album_id = request.args.get('album_id')
     logging.debug(f"DEBUG: backend.py - Getting tracks for album: {album_id}")
     results = sp.album_tracks(album_id, limit=50)
     logging.debug(f"DEBUG: backend.py - Found {len(results.get('items', []))} tracks")
     response = jsonify(results)
-    return add_cors_headers(response)
+    return response
 
 if __name__ == '__main__':
     logging.debug("DEBUG: backend.py - Starting Flask server on port 8000")
