@@ -5,6 +5,7 @@ from spotipy.oauth2 import SpotifyPKCE
 import spotipy
 from shared_constants import *
 import logging
+from spotipy.exceptions import SpotifyException
 
 logging.basicConfig(
     filename='backend.log',
@@ -218,12 +219,14 @@ def me():
     sp = get_spotify()
     if not sp:
         logging.debug("DEBUG: backend.py - Not authenticated for /me")
-        response = jsonify({'error': 'Not authenticated'}), 401
-        return response
-    user_info = sp.current_user()
-    logging.debug(f"DEBUG: backend.py - User info retrieved: {user_info.get('id', 'unknown')}")
-    response = jsonify(user_info)
-    return response
+        return jsonify({'error': 'Not authenticated'}), 401
+    try:
+        user_info = sp.current_user()
+        logging.debug(f"DEBUG: backend.py - User info retrieved: {user_info.get('id', 'unknown')}")
+        return jsonify(user_info)
+    except SpotifyException as e:
+        logging.error(f"SpotifyException: {e}")
+        return jsonify({'error': 'Spotify token expired or invalid'}), 401
 
 @app.route('/search')
 def search():
