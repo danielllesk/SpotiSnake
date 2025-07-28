@@ -33,7 +33,7 @@ else:
 # More permissive CORS configuration
 CORS(app, supports_credentials=True, 
      origins=[
-         # Local development variants - comprehensive list
+         # Allow all localhost variants (including IPv6)
          "http://localhost:8000",
          "http://127.0.0.1:8000", 
          "http://[::1]:8000",
@@ -68,18 +68,15 @@ def log_request_info():
     logging.debug(f"DEBUG: backend.py - Request: {request.method} {request.path}")
     logging.debug(f"DEBUG: backend.py - Origin: {request.headers.get('Origin', 'No Origin')}")
     logging.debug(f"DEBUG: backend.py - User-Agent: {request.headers.get('User-Agent', 'No User-Agent')}")
+    logging.debug(f"DEBUG: backend.py - All headers: {dict(request.headers)}")
 
 # Add comprehensive CORS handler
 def add_cors_headers(response):
     """Add CORS headers to response"""
     origin = request.headers.get('Origin')
     if origin:
-        # Allow any localhost origin for development/testing
-        if 'localhost' in origin or '127.0.0.1' in origin or '[::' in origin:
-            response.headers['Access-Control-Allow-Origin'] = origin
-        # Allow production domains
-        elif 'spotisnake.onrender.com' in origin or 'itch.io' in origin or 'itch.zone' in origin:
-            response.headers['Access-Control-Allow-Origin'] = origin
+        # Allow any origin for development/testing (more permissive)
+        response.headers['Access-Control-Allow-Origin'] = origin
     response.headers['Access-Control-Allow-Credentials'] = 'true'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
@@ -91,8 +88,22 @@ def add_cors_headers(response):
 def handle_options(path):
     logging.debug(f"DEBUG: backend.py - OPTIONS request for path: {path}")
     logging.debug(f"DEBUG: backend.py - Origin: {request.headers.get('Origin', 'No Origin')}")
+    logging.debug(f"DEBUG: backend.py - All headers: {dict(request.headers)}")
+    
+    # Create response with CORS headers
     response = jsonify({'status': 'ok'})
-    return add_cors_headers(response)
+    response = add_cors_headers(response)
+    
+    # Add additional CORS headers for preflight
+    origin = request.headers.get('Origin')
+    if origin:
+        response.headers['Access-Control-Allow-Origin'] = origin
+    response.headers['Access-Control-Allow-Credentials'] = 'true'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
+    
+    logging.debug(f"DEBUG: backend.py - OPTIONS response headers: {dict(response.headers)}")
+    return response
 
 print("DEBUG: backend.py - Setting up Spotify PKCE authentication")
 sp_oauth = SpotifyPKCE(
@@ -276,12 +287,7 @@ def search():
     response = jsonify(results)
     return add_cors_headers(response)
 
-@app.route('/play', methods=['GET'])
-def play_get_debug():
-    logging.debug("DEBUG: backend.py - /play GET called (should not happen!)")
-    logging.debug(f"DEBUG: backend.py - Request headers: {dict(request.headers)}")
-    response = jsonify({'error': 'GET not allowed on /play'}), 405
-    return add_cors_headers(response[0])
+
 
 @app.route('/play', methods=['POST'])
 def play():
