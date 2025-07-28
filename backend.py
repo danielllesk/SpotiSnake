@@ -38,6 +38,7 @@ CORS(app, supports_credentials=True,
          "http://127.0.0.1:8000", 
          "http://[::1]:8000",
          "http://[::]:8000",
+         "http://[::]:8000",
          "http://localhost:3000",
          "http://localhost:8080",
          "http://localhost:9000",
@@ -75,8 +76,12 @@ def add_cors_headers(response):
     """Add CORS headers to response"""
     origin = request.headers.get('Origin')
     if origin:
-        # Allow any origin for development/testing (more permissive)
-        response.headers['Access-Control-Allow-Origin'] = origin
+        # Allow any localhost origin for development/testing
+        if 'localhost' in origin or '127.0.0.1' in origin or '[::' in origin or '::' in origin:
+            response.headers['Access-Control-Allow-Origin'] = origin
+        # Allow production domains
+        elif 'spotisnake.onrender.com' in origin or 'itch.io' in origin or 'itch.zone' in origin:
+            response.headers['Access-Control-Allow-Origin'] = origin
     response.headers['Access-Control-Allow-Credentials'] = 'true'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
