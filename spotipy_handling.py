@@ -92,7 +92,11 @@ def await_js_promise(promise):
 def handle_auth_result(result_json):
     import json
     print(f"DEBUG: spotipy_handling.py - handle_auth_result called with: {result_json}")
-    data = json.loads(result_json)
+    try:
+        data = json.loads(result_json)
+    except json.JSONDecodeError:
+        print("DEBUG: spotipy_handling.py - Failed to parse JSON, got:", result_json[:200])
+        data = {}
     global is_logging_in
     if data.get('id'):
         print("DEBUG: spotipy_handling.py - Authentication successful (callback)")
@@ -114,7 +118,19 @@ def check_authenticated():
         method: "GET",
         credentials: "include"
     }})
-    .then(response => response.text())
+    .then(response => {{
+        console.log("JS: /me status:", response.status);
+        const ct = response.headers.get("Content-Type") || "";
+        console.log("JS: /me Content-Type:", ct);
+        if (ct.includes("application/json")) {{
+            return response.text();
+        }} else {{
+            return response.text().then(txt => {{
+                console.log("JS: Non-JSON response received. Possibly an error or redirect.");
+                return txt;
+            }});
+        }}
+    }})
     .then(text => {{
         console.log("JS: Fetched text:", text);
         window.handle_auth_result(text);
@@ -247,12 +263,11 @@ async def get_album_search_input(screen, font):
     async def music_task_wrapper():
         """Plays background music during album search."""
         print("DEBUG: spotipy_handling.py - Starting background music for search")
-        await asyncio.to_thread(play_track_sync, SEARCH_TRACK_URI, 3000)
+        await play_track_via_backend(SEARCH_TRACK_URI, 3000)
 
     try:
-        loop = asyncio.get_running_loop()
-        loop.create_task(music_task_wrapper())
-        print("DEBUG: spotipy_handling.py - Background music task created")
+        await music_task_wrapper()
+        print("DEBUG: spotipy_handling.py - Background music started (awaited)")
     except RuntimeError:
         print("DEBUG: spotipy_handling.py - No event loop running for background music")
     except Exception as e:
@@ -385,3 +400,93 @@ async def get_album_search_input(screen, font):
         pygame.display.flip()
         await asyncio.sleep(0.01)
     print("DEBUG: spotipy_handling.py - get_album_search_input called (END, should never reach here)")
+
+# Browser-safe: play track via backend
+async def play_track_via_backend(uri, position_ms=0):
+    print(f"DEBUG: spotipy_handling.py - play_track_via_backend called with uri={uri}, position_ms={position_ms}")
+    import js
+    options_js = js.eval(f'''({{
+        method: "POST",
+        headers: {{
+            "Content-Type": "application/json"
+        }},
+        credentials: "include",
+        body: JSON.stringify({{"uri": "{uri}", "position_ms": {position_ms}}})
+    }})''')
+    response = await js.fetch(f"{BACKEND_URL}/play", options_js)
+    print(f"DEBUG: spotipy_handling.py - /play response status: {response.status}")
+    text = await response.text()
+    print(f"DEBUG: spotipy_handling.py - /play response text: {text[:200]}")
+    return response.status == 200
+
+# Browser-safe: search album via backend
+async def search_album_via_backend(query):
+    import js
+    import json
+    url = f"{BACKEND_URL}/search?q={query}"
+    options_js = js.eval('({ method: "GET", credentials: "include" })')
+    response = await js.fetch(url, options_js)
+    print(f"DEBUG: spotipy_handling.py - /search response status: {response.status}")
+    text = await response.text()
+    print(f"DEBUG: spotipy_handling.py - /search response text: {text[:200]}")
+    try:
+        return json.loads(text)
+    except Exception:
+        print("DEBUG: spotipy_handling.py - Failed to parse /search JSON", text[:200])
+        return None
+
+# Browser-safe: pause playback via backend
+async def pause_playback_via_backend():
+    import js
+    options_js = js.eval('({ method: "POST", credentials: "include" })')
+    response = await js.fetch(f"{BACKEND_URL}/pause", options_js)
+    print(f"DEBUG: spotipy_handling.py - /pause response status: {response.status}")
+    text = await response.text()
+    print(f"DEBUG: spotipy_handling.py - /pause response text: {text[:200]}")
+    return response.status == 200
+
+# Browser-safe: get devices via backend
+async def get_devices_via_backend():
+    import js
+    import json
+    options_js = js.eval('({ method: "GET", credentials: "include" })')
+    response = await js.fetch(f"{BACKEND_URL}/devices", options_js)
+    print(f"DEBUG: spotipy_handling.py - /devices response status: {response.status}")
+    text = await response.text()
+    print(f"DEBUG: spotipy_handling.py - /devices response text: {text[:200]}")
+    try:
+        return json.loads(text)
+    except Exception:
+        print("DEBUG: spotipy_handling.py - Failed to parse /devices JSON", text[:200])
+        return None
+
+# Browser-safe: get current playback via backend
+async def get_current_playback_via_backend():
+    import js
+    import json
+    options_js = js.eval('({ method: "GET", credentials: "include" })')
+    response = await js.fetch(f"{BACKEND_URL}/currently_playing", options_js)
+    print(f"DEBUG: spotipy_handling.py - /currently_playing response status: {response.status}")
+    text = await response.text()
+    print(f"DEBUG: spotipy_handling.py - /currently_playing response text: {text[:200]}")
+    try:
+        return json.loads(text)
+    except Exception:
+        print("DEBUG: spotipy_handling.py - Failed to parse /currently_playing JSON", text[:200])
+        return None
+
+# Browser-safe: get album tracks via backend
+async def get_album_tracks_via_backend(album_id):
+    import js
+    import json
+    url = f"{BACKEND_URL}/album_tracks?album_id={album_id}"
+    options_js = js.eval('({ method: "GET", credentials: "include" })')
+    response = await js.fetch(url, options_js)
+    print(f"DEBUG: spotipy_handling.py - /album_tracks response status: {response.status}")
+    text = await response.text()
+    print(f"DEBUG: spotipy_handling.py - /album_tracks response text: {text[:200]}")
+    try:
+        return json.loads(text)
+    except Exception:
+        print("DEBUG: spotipy_handling.py - Failed to parse /album_tracks JSON", text[:200])
+        return None

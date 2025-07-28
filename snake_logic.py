@@ -5,7 +5,7 @@ import asyncio
 import traceback
 from spotipy_handling import (
     get_album_search_input, download_and_resize_album_cover, 
-    play_random_track_from_album, play_uri_with_details, safe_pause_playback
+    play_random_track_from_album, play_uri_with_details, safe_pause_playback, play_track_via_backend
 )
 from shared_constants import * 
 from ui import start_menu, quit_game_async
@@ -127,7 +127,8 @@ async def start_game(screen):
     song_display_state["name"] = "Loading first game song..."
     song_display_state["artist"] = ""
     print("DEBUG: snake_logic.py - Starting first track")
-    asyncio.create_task(asyncio.to_thread(play_random_track_from_album, album_result['uri'], update_song_display_from_callback))
+    await play_track_via_backend(album_result['uri'], 0)
+    # Optionally, update the UI with a message like "Playing album..."
 
     album_pieces = cut_image_into_pieces(album_cover_surface, ALBUM_GRID_SIZE, ALBUM_GRID_SIZE)
     revealed_pieces = set()
@@ -224,7 +225,7 @@ async def start_game(screen):
                 print(f"DEBUG: snake_logic.py - Score milestone reached: {score}, changing song")
                 song_display_state["name"] = "Changing song..."
                 song_display_state["artist"] = ""
-                asyncio.create_task(asyncio.to_thread(play_random_track_from_album, album_result['uri'], update_song_display_from_callback))
+                await play_track_via_backend(album_result['uri'], 0)
 
         if (snake_pos[0] < 0 or snake_pos[0] >= width or
             snake_pos[1] < 0 or snake_pos[1] >= height or
@@ -289,11 +290,7 @@ async def winning_screen(screen, score, album_pieces):
     """Displays the winning screen, plays a victory song, and shows New Game button."""
     print("DEBUG: snake_logic.py - winning_screen called")
     print("DEBUG: snake_logic.py - Playing winning track")
-    _, _, _ = await asyncio.to_thread(
-        play_uri_with_details, 
-        WINNING_TRACK_URI, 
-        33000
-    )
+    await play_track_via_backend(WINNING_TRACK_URI, 33000)
     
     font = pygame.font.SysFont('Press Start 2P', 45)
     button_font = pygame.font.SysFont('Press Start 2P', 25)
@@ -346,11 +343,7 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
     """Handles the Easter egg event: plays a special song and shows a message."""
     print("DEBUG: snake_logic.py - trigger_easter_egg_sequence called")
 
-    played_ee_successfully, _, _ = await asyncio.to_thread(
-        play_uri_with_details, 
-        EASTER_EGG_TRACK_URI, 
-        176000
-    )
+    played_ee_successfully = await play_track_via_backend(EASTER_EGG_TRACK_URI, 176000)
     
     if not played_ee_successfully:
         print("DEBUG: snake_logic.py - Easter egg track failed to play")

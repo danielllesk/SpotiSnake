@@ -15,7 +15,7 @@ print("DEBUG: ui.py - Importing shared_constants")
 from shared_constants import *
 print("DEBUG: ui.py - Importing spotipy_handling functions")
 from spotipy_handling import (
-    get_album_search_input, cleanup, get_spotify_device, safe_pause_playback, backend_login, check_authenticated, play_uri_with_details
+    get_album_search_input, cleanup, get_spotify_device, safe_pause_playback, backend_login, check_authenticated, play_uri_with_details, play_track_via_backend
 )
 print("DEBUG: ui.py - All imports completed successfully")
 
@@ -204,8 +204,7 @@ async def start_menu():
     # Play background music for the main menu
     print("DEBUG: ui.py - Playing background music")
     try:
-        # Use asyncio.create_task to avoid blocking
-        asyncio.create_task(asyncio.to_thread(play_uri_with_details, START_MENU_URI, 0))
+        await play_track_via_backend(START_MENU_URI, 0)
         print("DEBUG: ui.py - Background music started")
     except Exception as e:
         print(f"DEBUG: ui.py - Failed to start background music: {e}")
