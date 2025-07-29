@@ -329,14 +329,54 @@ def play():
         logging.debug("DEBUG: backend.py - Not authenticated for /play")
         response = jsonify({'error': 'Not authenticated'}), 401
         return add_cors_headers(response[0])
+    
     uri = request.json.get('uri')
     device_id = request.json.get('device_id')
     position_ms = request.json.get('position_ms', 0)
     logging.debug(f"DEBUG: backend.py - Playing URI: {uri}, device: {device_id}, position: {position_ms}")
-    sp.start_playback(device_id=device_id, uris=[uri] if uri else None, position_ms=position_ms)
-    logging.debug("DEBUG: backend.py - Playback started successfully")
-    response = jsonify({'status': 'playing'})
-    return add_cors_headers(response)
+    
+    try:
+        # Try to start playback with the provided device_id
+        sp.start_playback(device_id=device_id, uris=[uri] if uri else None, position_ms=position_ms)
+        logging.debug("DEBUG: backend.py - Playback started successfully")
+        response = jsonify({'status': 'playing'})
+        return add_cors_headers(response)
+    except Exception as e:
+        logging.debug(f"DEBUG: backend.py - Playback failed with device_id {device_id}: {e}")
+        
+        # If that fails, try to find an available device
+        try:
+            devices_info = sp.devices()
+            devices = devices_info.get('devices', [])
+            logging.debug(f"DEBUG: backend.py - Found {len(devices)} devices")
+            
+            # Look for an active device first
+            active_device = None
+            for device in devices:
+                if device.get('is_active'):
+                    active_device = device
+                    break
+            
+            # If no active device, use the first available device
+            if not active_device and devices:
+                active_device = devices[0]
+            
+            if active_device:
+                device_id = active_device['id']
+                logging.debug(f"DEBUG: backend.py - Using device: {active_device.get('name', 'Unknown')} (ID: {device_id})")
+                sp.start_playback(device_id=device_id, uris=[uri] if uri else None, position_ms=position_ms)
+                logging.debug("DEBUG: backend.py - Playback started successfully with found device")
+                response = jsonify({'status': 'playing', 'device_id': device_id})
+                return add_cors_headers(response)
+            else:
+                logging.debug("DEBUG: backend.py - No devices available")
+                response = jsonify({'error': 'No active device found. Please open Spotify and start playing music.'}), 404
+                return add_cors_headers(response)
+                
+        except Exception as e2:
+            logging.debug(f"DEBUG: backend.py - Failed to find and use device: {e2}")
+            response = jsonify({'error': 'No active device found. Please open Spotify and start playing music.'}), 404
+            return add_cors_headers(response)
 
 @app.route('/pause', methods=['POST', 'OPTIONS'])
 def pause():
