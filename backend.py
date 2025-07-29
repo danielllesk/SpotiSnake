@@ -62,7 +62,7 @@ else:
      expose_headers=["Content-Type", "Authorization"],
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
      credentials=True
-     ''''
+     '''
 
 # Add CORS debugging middleware
 @app.before_request
