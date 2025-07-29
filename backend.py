@@ -277,9 +277,22 @@ def me():
         response = jsonify({'error': 'Spotify token expired or invalid'}), 401
         return add_cors_headers(response[0])
 
-@app.route('/search')
+@app.route('/search', methods=['GET', 'OPTIONS'])
 def search():
-    logging.debug("DEBUG: backend.py - /search endpoint called")
+    if request.method == 'OPTIONS':
+        logging.debug("DEBUG: backend.py - OPTIONS request for /search endpoint")
+        response = jsonify({'status': 'ok'})
+        response = add_cors_headers(response)
+        # Add additional CORS headers for preflight
+        origin = request.headers.get('Origin')
+        if origin:
+            response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
+        return response
+    
+    logging.debug("DEBUG: backend.py - GET /search endpoint called")
     sp = get_spotify()
     if not sp:
         logging.debug("DEBUG: backend.py - Not authenticated for /search")
@@ -294,9 +307,23 @@ def search():
 
 
 
-@app.route('/play', methods=['POST'])
+@app.route('/play', methods=['POST', 'OPTIONS'])
 def play():
-    logging.debug("DEBUG: backend.py - /play endpoint called")
+    if request.method == 'OPTIONS':
+        logging.debug("DEBUG: backend.py - OPTIONS request for /play endpoint")
+        response = jsonify({'status': 'ok'})
+        response = add_cors_headers(response)
+        # Add additional CORS headers for preflight
+        origin = request.headers.get('Origin')
+        if origin:
+            response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
+        logging.debug(f"DEBUG: backend.py - OPTIONS response headers for /play: {dict(response.headers)}")
+        return response
+    
+    logging.debug("DEBUG: backend.py - POST /play endpoint called")
     sp = get_spotify()
     if not sp:
         logging.debug("DEBUG: backend.py - Not authenticated for /play")
@@ -311,9 +338,22 @@ def play():
     response = jsonify({'status': 'playing'})
     return add_cors_headers(response)
 
-@app.route('/pause', methods=['POST'])
+@app.route('/pause', methods=['POST', 'OPTIONS'])
 def pause():
-    logging.debug("DEBUG: backend.py - /pause endpoint called")
+    if request.method == 'OPTIONS':
+        logging.debug("DEBUG: backend.py - OPTIONS request for /pause endpoint")
+        response = jsonify({'status': 'ok'})
+        response = add_cors_headers(response)
+        # Add additional CORS headers for preflight
+        origin = request.headers.get('Origin')
+        if origin:
+            response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
+        return response
+    
+    logging.debug("DEBUG: backend.py - POST /pause endpoint called")
     sp = get_spotify()
     if not sp:
         logging.debug("DEBUG: backend.py - Not authenticated for /pause")
