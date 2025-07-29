@@ -31,7 +31,7 @@ else:
     app.config['SESSION_COOKIE_SECURE'] = True      # Required for SameSite=None (must use HTTPS)
 
 # More permissive CORS configuration
-CORS(app, supports_credentials=True, 
+'''CORS(app, supports_credentials=True, 
      origins=[
          # Allow all localhost variants (including IPv6)
          "http://localhost:8000",
@@ -61,7 +61,8 @@ CORS(app, supports_credentials=True,
      allow_headers=["Content-Type", "Authorization", "Origin", "Accept", "X-Requested-With"],
      expose_headers=["Content-Type", "Authorization"],
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-     credentials=True)
+     credentials=True
+     ''''
 
 # Add CORS debugging middleware
 @app.before_request
@@ -74,17 +75,40 @@ def log_request_info():
 # Add comprehensive CORS handler
 def add_cors_headers(response):
     """Add CORS headers to response"""
-    origin = request.headers.get('Origin')
-    if origin:
-        # Allow any localhost origin for development/testing
-        if 'localhost' in origin or '127.0.0.1' in origin or '[::' in origin or '::' in origin:
-            response.headers['Access-Control-Allow-Origin'] = origin
-        # Allow production domains
-        elif 'spotisnake.onrender.com' in origin or 'itch.io' in origin or 'itch.zone' in origin:
-            response.headers['Access-Control-Allow-Origin'] = origin
+    origin = request.headers.get('Origin', 'No Origin')
+    logging.debug(f"DEBUG: backend.py - Processing CORS for Origin: {origin}")
+    
+    allowed_origins = [
+        "http://localhost:8000",
+        "http://127.0.0.1:8000",
+        "http://[::1]:8000",
+        "http://[::]:8000",  # Explicitly include IPv6 loopback
+        "https://localhost:8000",
+        "https://127.0.0.1:8000",
+        "https://[::1]:8000",
+        "https://[::]:8000",
+        "http://localhost:3000",
+        "https://localhost:3000",
+        "http://localhost:8080",
+        "https://localhost:8080",
+        "http://localhost:9000",
+        "https://localhost:9000",
+        "https://spotisnake.onrender.com",
+        "https://danielllesk.itch.io",
+        "https://danielllesk.itch.io/spotisnake",
+        "https://html-classic.itch.zone",
+    ]
+    
+    if origin in allowed_origins or any(origin.endswith(domain) for domain in ['.itch.io', '.itch.zone']):
+        response.headers['Access-Control-Allow-Origin'] = origin
+        logging.debug(f"DEBUG: backend.py - Setting Access-Control-Allow-Origin to {origin}")
+    else:
+        logging.warning(f"DEBUG: backend.py - Origin {origin} not allowed")
+    
     response.headers['Access-Control-Allow-Credentials'] = 'true'
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
+    logging.debug(f"DEBUG: backend.py - Response headers: {dict(response.headers)}")
     return response
 
 # Catch-all OPTIONS handler for CORS preflight
