@@ -713,9 +713,6 @@ async def get_album_search_input(screen, font):
                 else:
                     pygame.draw.rect(screen, WHITE, result_rect)
                 pygame.draw.rect(screen, DARK_BLUE, result_rect, 1)
-                if album['image_url'] and album['uri'] not in album_covers:
-                    # Use fallback cover for now, will be replaced by async download
-                    album_covers[album['uri']] = create_fallback_album_cover(50, 50)
                 if album['uri'] in album_covers and album_covers[album['uri']]:
                     screen.blit(album_covers[album['uri']], (result_rect.x + 10, result_rect.y + 10))
                     text_start_x = result_rect.x + 70
@@ -792,8 +789,20 @@ async def get_album_search_input(screen, font):
                                     }
                                     search_results.append(album_data)
                                 print(f"DEBUG: spotipy_handling.py - Added {len(search_results)} albums to search results")
-                                # Start downloading album covers in the background
-                                asyncio.create_task(download_album_covers_async())
+                                # Download album covers immediately
+                                print("DEBUG: spotipy_handling.py - Starting album cover downloads")
+                                for album in search_results:
+                                    if album['image_url']:
+                                        try:
+                                            cover = await download_and_resize_album_cover_async(album['image_url'], 50, 50)
+                                            if cover:
+                                                album_covers[album['uri']] = cover
+                                                print(f"DEBUG: spotipy_handling.py - Downloaded cover for {album['name']}")
+                                            else:
+                                                print(f"DEBUG: spotipy_handling.py - Failed to download cover for {album['name']}")
+                                        except Exception as e:
+                                            print(f"DEBUG: spotipy_handling.py - Error downloading cover for {album['name']}: {e}")
+                                print("DEBUG: spotipy_handling.py - Album cover downloads completed")
                             else:
                                 print(f"DEBUG: spotipy_handling.py - No albums found in search results")
                             album_covers.clear()
