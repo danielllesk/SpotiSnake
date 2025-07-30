@@ -214,13 +214,13 @@ def callback():
     code = request.args.get('code')
     logging.debug(f"DEBUG: backend.py - Received auth code: {code[:10]}...")
     try:
-        token_info = sp_oauth.get_access_token(code)
+    token_info = sp_oauth.get_access_token(code)
         logging.debug(f"DEBUG: backend.py - Raw token_info: {token_info}")
         logging.debug(f"DEBUG: backend.py - Token_info type: {type(token_info)}")
         # If token_info is a string, wrap it in a dict
         if isinstance(token_info, str):
             token_info = {'access_token': token_info}
-        session['token_info'] = token_info
+    session['token_info'] = token_info
         logging.debug("DEBUG: backend.py - Token stored in session")
         logging.debug(f"DEBUG: backend.py - Session contents after storing token: {dict(session)}")
         logging.debug(f"DEBUG: backend.py - Session ID: {session.sid if hasattr(session, 'sid') else 'No SID'}")
@@ -312,9 +312,9 @@ def me():
         logging.debug("DEBUG: backend.py - No token_info in session for /me")
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
         return add_cors_headers(response[0])
-    
+
     logging.debug(f"DEBUG: backend.py - Token info found: {type(token_info)}")
-    
+
     sp = get_spotify()
     if not sp:
         logging.debug("DEBUG: backend.py - Failed to create Spotify client for /me")
@@ -377,7 +377,7 @@ def search():
     
     try:
         logging.debug(f"DEBUG: backend.py - Calling Spotify API search with query: '{q}'")
-        results = sp.search(q, type='album', limit=5)
+    results = sp.search(q, type='album', limit=5)
         albums_found = len(results.get('albums', {}).get('items', []))
         logging.debug(f"DEBUG: backend.py - Found {albums_found} albums")
         
