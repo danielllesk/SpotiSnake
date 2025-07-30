@@ -364,10 +364,20 @@ def play():
         return response
     
     logging.debug("DEBUG: backend.py - POST /play endpoint called")
+    
+    # Check session first
+    token_info = session.get('token_info')
+    if not token_info:
+        logging.debug("DEBUG: backend.py - No token_info in session for /play")
+        response = jsonify({'error': 'Not authenticated - no token in session'}), 401
+        return add_cors_headers(response[0])
+    
+    logging.debug(f"DEBUG: backend.py - Token info found for /play: {type(token_info)}")
+    
     sp = get_spotify()
     if not sp:
-        logging.debug("DEBUG: backend.py - Not authenticated for /play")
-        response = jsonify({'error': 'Not authenticated'}), 401
+        logging.debug("DEBUG: backend.py - Failed to create Spotify client for /play")
+        response = jsonify({'error': 'Not authenticated - invalid token'}), 401
         return add_cors_headers(response[0])
     
     uri = request.json.get('uri')
@@ -606,6 +616,35 @@ def force_auth():
     response = jsonify({
         'message': 'Dummy authentication created for testing',
         'has_token': True,
+        'timestamp': time.time()
+    })
+    return add_cors_headers(response)
+
+@app.route('/test_play', methods=['GET', 'OPTIONS'])
+def test_play():
+    """Test endpoint to check if play would work"""
+    logging.debug("DEBUG: backend.py - /test_play endpoint called")
+    
+    # Check session first
+    token_info = session.get('token_info')
+    if not token_info:
+        logging.debug("DEBUG: backend.py - No token_info in session for /test_play")
+        response = jsonify({'error': 'Not authenticated - no token in session'}), 401
+        return add_cors_headers(response[0])
+    
+    logging.debug(f"DEBUG: backend.py - Token info found for /test_play: {type(token_info)}")
+    
+    sp = get_spotify()
+    if not sp:
+        logging.debug("DEBUG: backend.py - Failed to create Spotify client for /test_play")
+        response = jsonify({'error': 'Not authenticated - invalid token'}), 401
+        return add_cors_headers(response[0])
+    
+    logging.debug("DEBUG: backend.py - Spotify client created successfully for /test_play")
+    response = jsonify({
+        'message': 'Authentication test successful',
+        'has_token': True,
+        'token_type': type(token_info).__name__,
         'timestamp': time.time()
     })
     return add_cors_headers(response)
