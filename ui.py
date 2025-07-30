@@ -229,7 +229,7 @@ async def start_menu():
 
     print("DEBUG: ui.py - Entering main menu loop")
     button_clicked = False
-    
+
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:

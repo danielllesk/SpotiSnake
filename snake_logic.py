@@ -322,10 +322,10 @@ async def winning_screen(screen, score, album_pieces):
                     px, py = pos[0] * ALBUM_GRID_SIZE, pos[1] * ALBUM_GRID_SIZE
                     screen.blit(album_pieces[pos], (px, py))
         
-        msg1_surf = render_text_with_outline("YOU THE GOAT!", font, GREEN, OUTLINE_COLOR, OUTLINE_THICKNESS)
-        msg2_surf = render_text_with_outline(f"Score: {score}", font, GREEN, OUTLINE_COLOR, OUTLINE_THICKNESS)
-        screen.blit(msg1_surf, (width//2 - msg1_surf.get_width()//2, height//2 - 80))
-        screen.blit(msg2_surf, (width//2 - msg2_surf.get_width()//2, height//2 + 20))
+            msg1_surf = render_text_with_outline("YOU THE GOAT!", font, GREEN, OUTLINE_COLOR, OUTLINE_THICKNESS)
+            msg2_surf = render_text_with_outline(f"Score: {score}", font, GREEN, OUTLINE_COLOR, OUTLINE_THICKNESS)
+            screen.blit(msg1_surf, (width//2 - msg1_surf.get_width()//2, height//2 - 80))
+            screen.blit(msg2_surf, (width//2 - msg2_surf.get_width()//2, height//2 + 20))
         
         # Draw New Game button
         mouse_pos = pygame.mouse.get_pos()
