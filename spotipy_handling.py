@@ -277,7 +277,18 @@ def get_album_tracks(album_id):
 
 def download_and_resize_album_cover(url, target_width, target_height):
     print(f"DEBUG: spotipy_handling.py - download_and_resize_album_cover called with url: {url}")
-    # Create a simple colored surface as fallback for browser
+    
+    if not url:
+        print(f"DEBUG: spotipy_handling.py - No URL provided, creating fallback")
+        return create_fallback_album_cover(target_width, target_height)
+    
+    # For now, just create fallback covers quickly to prevent blocking
+    # TODO: Implement async image downloading later
+    print(f"DEBUG: spotipy_handling.py - Creating fallback cover (async image downloading not implemented)")
+    return create_fallback_album_cover(target_width, target_height)
+
+def create_fallback_album_cover(target_width, target_height):
+    """Create a fallback album cover when image download fails"""
     try:
         surface = pygame.Surface((target_width, target_height))
         # Use a gradient-like effect with different colors
@@ -291,15 +302,15 @@ def download_and_resize_album_cover(url, target_width, target_height):
             text = font.render("ALBUM", True, (200, 200, 200))
             text_rect = text.get_rect(center=(target_width // 2, target_height // 2))
             surface.blit(text, text_rect)
-            print(f"DEBUG: spotipy_handling.py - Album cover created successfully with text")
+            print(f"DEBUG: spotipy_handling.py - Fallback album cover created with text")
         except Exception as e:
             print(f"DEBUG: spotipy_handling.py - Font rendering failed: {e}")
             pass  # If font rendering fails, just use the gradient
         
-        print(f"DEBUG: spotipy_handling.py - Album cover surface created: {surface.get_size()}")
+        print(f"DEBUG: spotipy_handling.py - Fallback album cover surface created: {surface.get_size()}")
         return surface
     except Exception as e:
-        print(f"DEBUG: spotipy_handling.py - Error creating album cover: {e}")
+        print(f"DEBUG: spotipy_handling.py - Error creating fallback album cover: {e}")
         return None
 
 def get_spotify_device():
@@ -594,10 +605,7 @@ async def get_album_search_input(screen, font):
                     pygame.draw.rect(screen, WHITE, result_rect)
                 pygame.draw.rect(screen, DARK_BLUE, result_rect, 1)
                 if album['image_url'] and album['uri'] not in album_covers:
-                    try:
-                        album_covers[album['uri']] = download_and_resize_album_cover(album['image_url'], 50, 50)
-                    except Exception:
-                        album_covers[album['uri']] = None
+                    album_covers[album['uri']] = download_and_resize_album_cover(album['image_url'], 50, 50)
                 if album['uri'] in album_covers and album_covers[album['uri']]:
                     screen.blit(album_covers[album['uri']], (result_rect.x + 10, result_rect.y + 10))
                     text_start_x = result_rect.x + 70
@@ -658,14 +666,13 @@ async def get_album_search_input(screen, font):
                 if active:
                     if event.key == pygame.K_RETURN:
                         if text:
-                            print(f"DEBUG: spotipy_handling.py - album search ENTER pressed, text: {text}")
+                            print(f"DEBUG: spotipy_handling.py - Searching for: {text}")
                             # Use backend search
                             search_results = []
-                            print(f"DEBUG: spotipy_handling.py - Calling search_album_via_backend with: {text}")
                             backend_results = await search_album_via_backend(text)
-                            print(f"DEBUG: spotipy_handling.py - Search results: {backend_results}")
                             if backend_results and 'albums' in backend_results and 'items' in backend_results['albums']:
-                                print(f"DEBUG: spotipy_handling.py - Found {len(backend_results['albums']['items'])} albums")
+                                albums_found = len(backend_results['albums']['items'])
+                                print(f"DEBUG: spotipy_handling.py - Found {albums_found} albums")
                                 for album in backend_results['albums']['items']:
                                     album_data = {
                                         'name': album.get('name', 'Unknown Album'),
@@ -674,7 +681,7 @@ async def get_album_search_input(screen, font):
                                         'artist': album.get('artists', [{}])[0].get('name', 'Unknown Artist') if album.get('artists') else 'Unknown Artist'
                                     }
                                     search_results.append(album_data)
-                                    print(f"DEBUG: spotipy_handling.py - Added album: {album_data['name']} by {album_data['artist']}")
+                                print(f"DEBUG: spotipy_handling.py - Added {len(search_results)} albums to search results")
                             else:
                                 print(f"DEBUG: spotipy_handling.py - No albums found in search results")
                             album_covers.clear()
@@ -789,47 +796,158 @@ async def search_album_via_backend(query):
     import js
     import json
     
+    # URL encode the query to handle special characters
+    import urllib.parse
+    encoded_query = urllib.parse.quote(query)
+    
     js_code = f'''
     // Clear previous search result
     window.search_result = null;
+    console.log("JS: Starting search for: {query}");
+    console.log("JS: Fetching from URL: {BACKEND_URL}/search?q={encoded_query}");
     
-    fetch("{BACKEND_URL}/search?q={query}", {{
-        method: "GET",
-        credentials: "include"
-    }})
-    .then(response => {{
-        return response.text();
-    }})
-    .then(text => {{
-        window.search_result = {{ status: 200, text: text }};
-    }})
-    .catch(error => {{
-        window.search_result = {{ status: 500, error: error.toString() }};
-    }});
+    // Use a simpler approach with better error handling
+    try {{
+        console.log("JS: About to execute fetch");
+        fetch("{BACKEND_URL}/search?q={encoded_query}", {{
+            method: "GET",
+            credentials: "include",
+            headers: {{
+                "Accept": "application/json"
+            }}
+        }})
+        .then(function(response) {{
+            console.log("JS: Search response status:", response.status);
+            console.log("JS: Search response ok:", response.ok);
+            
+            if (!response.ok) {{
+                console.log("JS: Response not ok, getting error text");
+                return response.text().then(function(text) {{
+                    console.log("JS: Error response text:", text);
+                    window.search_result = {{ status: response.status, text: text, error: true }};
+                    console.log("JS: Error result stored in window");
+                }});
+            }}
+            return response.text();
+        }})
+        .then(function(text) {{
+            if (text) {{
+                console.log("JS: Search response text length:", text.length);
+                console.log("JS: Search response text preview:", text.substring(0, 200));
+                window.search_result = {{ status: 200, text: text }};
+                console.log("JS: Search result stored in window");
+                console.log("JS: Window search_result value:", window.search_result);
+            }}
+        }})
+        .catch(function(error) {{
+            console.log("JS: Search fetch error:", error);
+            console.log("JS: Error message:", error.message);
+            window.search_result = {{ status: 500, error: error.toString(), message: error.message }};
+            console.log("JS: Search error stored in window");
+        }});
+        console.log("JS: Fetch executed, waiting for response...");
+    }} catch (error) {{
+        console.log("JS: Top-level error:", error);
+        window.search_result = {{ status: 500, error: error.toString(), message: error.message }};
+        console.log("JS: Top-level error stored in window");
+    }}
     '''
     
     try:
-        js.eval(js_code)
         import asyncio
-        await asyncio.sleep(0.3)  # Wait longer for the fetch to complete
+        print(f"DEBUG: spotipy_handling.py - Executing search JavaScript code")
+        js.eval(js_code)
+        
+        # Longer initial delay to let the fetch complete
+        await asyncio.sleep(0.5)
+        
+        # Wait for the result with longer timeout
+        max_attempts = 10  # Increased from 8
+        for attempt in range(max_attempts):
+            await asyncio.sleep(0.3)  # Increased from 0.2
+            if hasattr(js.window, 'search_result'):
+                result = js.window.search_result
+                print(f"DEBUG: spotipy_handling.py - Search result found after {attempt + 1} attempts")
+                print(f"DEBUG: spotipy_handling.py - Result value: {result}")
+                
+                # Check if the result is actually valid (not None)
+                if result is not None:
+                    print(f"DEBUG: spotipy_handling.py - Result is valid, proceeding")
+                    break
+                else:
+                    print(f"DEBUG: spotipy_handling.py - Result is None, continuing to wait...")
+                    # Check what other properties are in the window object
+                    try:
+                        window_props = [attr for attr in dir(js.window) if not attr.startswith('_')]
+                        print(f"DEBUG: spotipy_handling.py - Window properties: {window_props[:10]}...")  # Show first 10
+                    except:
+                        print(f"DEBUG: spotipy_handling.py - Could not inspect window properties")
+                    # Check if there are any JavaScript errors
+                    try:
+                        if hasattr(js.window, 'console') and hasattr(js.window.console, 'error'):
+                            print(f"DEBUG: spotipy_handling.py - Checking for JS errors...")
+                    except:
+                        pass
+                    continue
+            print(f"DEBUG: spotipy_handling.py - Search attempt {attempt + 1}/{max_attempts}, no result yet")
+            # Check if there are any JavaScript errors
+            try:
+                if hasattr(js.window, 'console') and hasattr(js.window.console, 'error'):
+                    print(f"DEBUG: spotipy_handling.py - Checking for JS errors...")
+            except:
+                pass
         
         if hasattr(js.window, 'search_result'):
             result = js.window.search_result
             print(f"DEBUG: spotipy_handling.py - Search result from window: {result}")
+            print(f"DEBUG: spotipy_handling.py - Search result type: {type(result)}")
+            if result is not None:
+                print(f"DEBUG: spotipy_handling.py - Search result keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+            else:
+                print(f"DEBUG: spotipy_handling.py - Search result is None")
+                return None
             
             # Handle different result types
             if isinstance(result, dict):
-                if result.get('status') == 200:
+                status = result.get('status')
+                print(f"DEBUG: spotipy_handling.py - Search response status: {status}")
+                print(f"DEBUG: spotipy_handling.py - Search result keys: {list(result.keys())}")
+                
+                if status == 200:
                     try:
-                        parsed_data = json.loads(result.get('text', '{}'))
+                        text = result.get('text', '{}')
+                        print(f"DEBUG: spotipy_handling.py - Response text length: {len(text)}")
+                        print(f"DEBUG: spotipy_handling.py - Response text preview: {text[:200]}")
+                        parsed_data = json.loads(text)
+                        print(f"DEBUG: spotipy_handling.py - Successfully parsed search data")
                         return parsed_data
-                    except json.JSONDecodeError:
+                    except json.JSONDecodeError as e:
+                        print(f"DEBUG: spotipy_handling.py - Failed to parse search result JSON: {e}")
                         return None
+                else:
+                    print(f"DEBUG: spotipy_handling.py - Search failed with status: {status}")
+                    error_message = result.get('message', 'No error message')
+                    print(f"DEBUG: spotipy_handling.py - Error message: {error_message}")
+                    
+                    # Try to parse the error response to see what went wrong
+                    try:
+                        text = result.get('text', '{}')
+                        if text:
+                            error_data = json.loads(text)
+                            print(f"DEBUG: spotipy_handling.py - Error response: {error_data}")
+                            # If the error response contains valid search data, return it anyway
+                            if 'albums' in error_data:
+                                print(f"DEBUG: spotipy_handling.py - Found albums in error response, returning anyway")
+                                return error_data
+                    except Exception as e:
+                        print(f"DEBUG: spotipy_handling.py - Could not parse error response: {e}")
+                    return None
             elif isinstance(result, str):
                 try:
                     parsed_result = json.loads(result)
                     return parsed_result
                 except json.JSONDecodeError:
+                    print(f"DEBUG: spotipy_handling.py - Failed to parse search result string as JSON")
                     return None
             else:
                 try:
@@ -840,10 +958,17 @@ async def search_album_via_backend(query):
                             parsed_data = json.loads(text)
                             return parsed_data
                         except json.JSONDecodeError:
+                            print(f"DEBUG: spotipy_handling.py - Failed to parse search result object JSON")
                             return None
-                except Exception:
+                    else:
+                        print(f"DEBUG: spotipy_handling.py - Search failed with status: {status}")
+                        return None
+                except Exception as e:
+                    print(f"DEBUG: spotipy_handling.py - Error accessing search result properties: {e}")
                     return None
-        return None
+        else:
+            print(f"DEBUG: spotipy_handling.py - No search result found after {max_attempts} attempts")
+            return None
     except Exception as e:
         print(f"DEBUG: spotipy_handling.py - Error in search_album_via_backend: {e}")
         return None
