@@ -692,6 +692,7 @@ async def play_track_via_backend(uri, position_ms=0):
         headers: {{
             "Content-Type": "application/json"
         }},
+        credentials: "include",
         body: JSON.stringify({{"uri": "{uri}", "position_ms": {position_ms}}})
     }})
     .then(response => {{
@@ -764,7 +765,8 @@ async def search_album_via_backend(query):
     
     js_code = f'''
     fetch("{BACKEND_URL}/search?q={query}", {{
-        method: "GET"
+        method: "GET",
+        credentials: "include"
     }})
     .then(response => {{
         return response.text();
