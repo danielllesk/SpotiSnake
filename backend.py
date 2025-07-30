@@ -368,10 +368,17 @@ def search():
         return add_cors_headers(response[0])
     q = request.args.get('q')
     logging.debug(f"DEBUG: backend.py - Searching for: {q}")
-    results = sp.search(q, type='album', limit=5)
-    logging.debug(f"DEBUG: backend.py - Found {len(results.get('albums', {}).get('items', []))} albums")
-    response = jsonify(results)
-    return add_cors_headers(response)
+    try:
+        results = sp.search(q, type='album', limit=5)
+        logging.debug(f"DEBUG: backend.py - Found {len(results.get('albums', {}).get('items', []))} albums")
+        response = jsonify(results)
+        return add_cors_headers(response)
+    except Exception as e:
+        logging.error(f"DEBUG: backend.py - Error in search: {e}")
+        import traceback
+        traceback.print_exc()
+        response = jsonify({'error': f'Search failed: {str(e)}'}), 500
+        return add_cors_headers(response)
 
 
 
