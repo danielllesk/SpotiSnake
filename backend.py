@@ -30,16 +30,15 @@ if is_development:
 else:
     app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Allow cross-site cookies
     app.config['SESSION_COOKIE_SECURE'] = True      # Required for SameSite=None (must use HTTPS)
-    app.config['SESSION_COOKIE_DOMAIN'] = '.onrender.com'  # Allow subdomain access
+    app.config['SESSION_COOKIE_DOMAIN'] = None      # No domain restriction for now
 
 # More permissive CORS configuration
-'''CORS(app, supports_credentials=True, 
+CORS(app, supports_credentials=True, 
      origins=[
          # Allow all localhost variants (including IPv6)
          "http://localhost:8000",
          "http://127.0.0.1:8000", 
          "http://[::1]:8000",
-         "http://[::]:8000",
          "http://[::]:8000",
          "http://localhost:3000",
          "http://localhost:8080",
@@ -64,7 +63,7 @@ else:
      expose_headers=["Content-Type", "Authorization"],
      methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
      credentials=True
-     '''
+     )
 
 # Add CORS debugging middleware
 @app.before_request
