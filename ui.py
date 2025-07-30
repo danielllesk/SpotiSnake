@@ -144,15 +144,11 @@ async def login_screen():
                         print("DEBUG: ui.py - Waiting for user to complete login...")
                         await asyncio.sleep(3)  # Wait 3 seconds for user to complete login
                         
-                        # Check if authentication was successful
-                        auth_success = await check_authenticated()
-                        if auth_success:
-                            print("DEBUG: ui.py - Authentication successful")
-                            print("DEBUG: ui.py - Returning True from login_screen")
-                            return True
-                        else:
-                            error_message = "Login failed. Please try again."
-                            error_timer = time.time()
+                        # For now, assume authentication is successful after login
+                        # The actual authentication will be checked when needed
+                        print("DEBUG: ui.py - Assuming authentication successful after login")
+                        print("DEBUG: ui.py - Returning True from login_screen")
+                        return True
                     except Exception as e:
                         print(f"DEBUG: ui.py - Login error: {e}")
                         error_message = f"Login error: {str(e)}"
@@ -193,24 +189,15 @@ async def start_menu():
     print("DEBUG: ui.py - start_menu called")
     clock = pygame.time.Clock()
     
-    # Check authentication status first
-    print("DEBUG: ui.py - Checking authentication status")
-    auth_status = await check_authenticated()
-    print(f"DEBUG: ui.py - Authentication status: {auth_status}")
+    # For now, always show login screen
+    print("DEBUG: ui.py - Always showing login screen for now")
+    login_success = await login_screen()
+    if not login_success:
+        print("DEBUG: ui.py - Login failed, exiting")
+        await quit_game_async()
+        return
     
-    if not auth_status:
-        print("DEBUG: ui.py - Not authenticated, showing login screen")
-        login_success = await login_screen()
-        if not login_success:
-            print("DEBUG: ui.py - Login failed, exiting")
-            await quit_game_async()
-            return
-        
-        # If login was successful, assume we're authenticated
-        print("DEBUG: ui.py - Login successful, assuming authenticated")
-        auth_status = True
-    
-    print("DEBUG: ui.py - Authenticated, showing main menu")
+    print("DEBUG: ui.py - Login successful, proceeding to main menu")
     
     # Play background music for the main menu
     print("DEBUG: ui.py - Playing background music")

@@ -159,11 +159,85 @@ js.auth_success = False
 
 async def check_authenticated():
     print("DEBUG: spotipy_handling.py - check_authenticated called (async version)")
+    import js
+    import json
     
-    # For testing, let's try a simple approach - just return True if login was initiated
-    # This bypasses the complex authentication check for now
-    print("DEBUG: spotipy_handling.py - Using simplified auth check")
-    return True
+    js_code = f'''
+    console.log("JS: Starting fetch for auth check");
+    fetch("{BACKEND_URL}/me", {{
+        method: "GET",
+        credentials: "include"
+    }})
+    .then(response => {{
+        console.log("JS: /me status:", response.status);
+        console.log("JS: /me ok:", response.ok);
+        return response.text().then(text => {{
+            return {{ status: response.status, text: text }};
+        }});
+    }})
+    .then(result => {{
+        console.log("JS: /me response text:", result.text);
+        window.auth_check_result = result;
+    }})
+    .catch(error => {{
+        console.log("JS: Auth check error:", error);
+        window.auth_check_result = {{ status: 500, error: error.toString() }};
+    }});
+    '''
+    
+    try:
+        js.eval(js_code)
+        import asyncio
+        await asyncio.sleep(0.3)  # Wait a bit longer for the fetch to complete
+        
+        if hasattr(js.window, 'auth_check_result'):
+            result = js.window.auth_check_result
+            print(f"DEBUG: spotipy_handling.py - Auth check result: {result}")
+            
+            # Handle JavaScript object properly
+            try:
+                if hasattr(result, 'status'):
+                    status = result.status
+                    print(f"DEBUG: spotipy_handling.py - Got status from object: {status}")
+                    if status == 200:
+                        print("DEBUG: spotipy_handling.py - User authenticated (status 200)")
+                        return True
+                    else:
+                        print(f"DEBUG: spotipy_handling.py - Auth check failed with status: {status}")
+                        return False
+                elif isinstance(result, dict):
+                    status = result.get('status', 500)
+                    print(f"DEBUG: spotipy_handling.py - Got status from dict: {status}")
+                    if status == 200:
+                        print("DEBUG: spotipy_handling.py - User authenticated (dict result)")
+                        return True
+                    else:
+                        print(f"DEBUG: spotipy_handling.py - Auth check failed with status: {status}")
+                        return False
+                else:
+                    print(f"DEBUG: spotipy_handling.py - Auth check result is unexpected type: {type(result)}")
+                    # Try to access properties anyway
+                    try:
+                        status = getattr(result, 'status', 500)
+                        print(f"DEBUG: spotipy_handling.py - Got status via getattr: {status}")
+                        if status == 200:
+                            print("DEBUG: spotipy_handling.py - User authenticated (getattr result)")
+                            return True
+                        else:
+                            print(f"DEBUG: spotipy_handling.py - Auth check failed with status: {status}")
+                            return False
+                    except Exception as e:
+                        print(f"DEBUG: spotipy_handling.py - Error accessing object properties: {e}")
+                        return False
+            except Exception as e:
+                print(f"DEBUG: spotipy_handling.py - Error processing result: {e}")
+                return False
+        else:
+            print("DEBUG: spotipy_handling.py - No auth check result available")
+            return False
+    except Exception as e:
+        print(f"DEBUG: spotipy_handling.py - Error in check_authenticated: {e}")
+        return False
 
 def search_album(query):
     print(f"DEBUG: spotipy_handling.py - search_album called with query: {query}")
