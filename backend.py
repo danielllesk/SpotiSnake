@@ -82,6 +82,13 @@ def log_request_info():
 # Add comprehensive CORS handler
 def add_cors_headers(response):
     """Add CORS headers to response"""
+    # Handle tuple responses (status code, response)
+    if isinstance(response, tuple):
+        response_obj, status_code = response
+    else:
+        response_obj = response
+        status_code = None
+    
     origin = request.headers.get('Origin', 'No Origin')
     logging.debug(f"DEBUG: backend.py - Processing CORS for Origin: {origin}")
     
@@ -107,16 +114,19 @@ def add_cors_headers(response):
     ]
     
     if origin in allowed_origins or any(origin.endswith(domain) for domain in ['.itch.io', '.itch.zone']):
-        response.headers['Access-Control-Allow-Origin'] = origin
+        response_obj.headers['Access-Control-Allow-Origin'] = origin
         logging.debug(f"DEBUG: backend.py - Setting Access-Control-Allow-Origin to {origin}")
     else:
         logging.warning(f"DEBUG: backend.py - Origin {origin} not allowed")
     
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
-    logging.debug(f"DEBUG: backend.py - Response headers: {dict(response.headers)}")
-    return response
+    response_obj.headers['Access-Control-Allow-Credentials'] = 'true'
+    response_obj.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    response_obj.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
+    logging.debug(f"DEBUG: backend.py - Response headers: {dict(response_obj.headers)}")
+    
+    if status_code:
+        return response_obj, status_code
+    return response_obj
 
 # Catch-all OPTIONS handler for CORS preflight
 @app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
@@ -608,8 +618,14 @@ def album_tracks():
         return add_cors_headers(response[0])
     album_id = request.args.get('album_id')
     logging.debug(f"DEBUG: backend.py - Getting tracks for album: {album_id}")
-    results = sp.album_tracks(album_id, limit=50)
-    logging.debug(f"DEBUG: backend.py - Found {len(results.get('items', []))} tracks")
+    try:
+        results = sp.album_tracks(album_id, limit=50)
+        logging.debug(f"DEBUG: backend.py - Found {len(results.get('items', []))} tracks")
+        logging.debug(f"DEBUG: backend.py - Album tracks response: {results}")
+    except Exception as e:
+        logging.error(f"DEBUG: backend.py - Error getting album tracks: {e}")
+        response = jsonify({'error': f'Failed to get album tracks: {str(e)}'}), 500
+        return add_cors_headers(response)
     response = jsonify(results)
     return add_cors_headers(response)
 

@@ -276,6 +276,7 @@ def get_album_tracks(album_id):
     return None
 
 def download_and_resize_album_cover(url, target_width, target_height):
+    print(f"DEBUG: spotipy_handling.py - download_and_resize_album_cover called with url: {url}")
     # Create a simple colored surface as fallback for browser
     try:
         surface = pygame.Surface((target_width, target_height))
@@ -283,6 +284,19 @@ def download_and_resize_album_cover(url, target_width, target_height):
         for y in range(target_height):
             color_value = int(50 + (y / target_height) * 100)
             pygame.draw.line(surface, (color_value, color_value, color_value), (0, y), (target_width, y))
+        
+        # Add some text to indicate it's an album cover
+        try:
+            font = pygame.font.SysFont("Arial", min(target_width, target_height) // 8)
+            text = font.render("ALBUM", True, (200, 200, 200))
+            text_rect = text.get_rect(center=(target_width // 2, target_height // 2))
+            surface.blit(text, text_rect)
+            print(f"DEBUG: spotipy_handling.py - Album cover created successfully with text")
+        except Exception as e:
+            print(f"DEBUG: spotipy_handling.py - Font rendering failed: {e}")
+            pass  # If font rendering fails, just use the gradient
+        
+        print(f"DEBUG: spotipy_handling.py - Album cover surface created: {surface.get_size()}")
         return surface
     except Exception as e:
         print(f"DEBUG: spotipy_handling.py - Error creating album cover: {e}")
@@ -449,6 +463,11 @@ def play_uri_with_details(track_uri, position_ms=0):
 async def play_random_track_from_album(album_id, song_info_updater_callback):
     print(f"DEBUG: spotipy_handling.py - play_random_track_from_album called with album_id: {album_id}")
     
+    # Extract album ID from URI if needed
+    if album_id.startswith('spotify:album:'):
+        album_id = album_id.replace('spotify:album:', '')
+        print(f"DEBUG: spotipy_handling.py - Extracted album ID: {album_id}")
+    
     # Use async approach with js.eval for getting album tracks
     import js
     import json
@@ -456,7 +475,8 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
     
     js_code = f'''
     fetch("{BACKEND_URL}/album_tracks?album_id={album_id}", {{
-        method: "GET"
+        method: "GET",
+        credentials: "include"
     }})
     .then(response => {{
         return response.text();
@@ -641,8 +661,11 @@ async def get_album_search_input(screen, font):
                             print(f"DEBUG: spotipy_handling.py - album search ENTER pressed, text: {text}")
                             # Use backend search
                             search_results = []
+                            print(f"DEBUG: spotipy_handling.py - Calling search_album_via_backend with: {text}")
                             backend_results = await search_album_via_backend(text)
+                            print(f"DEBUG: spotipy_handling.py - Search results: {backend_results}")
                             if backend_results and 'albums' in backend_results and 'items' in backend_results['albums']:
+                                print(f"DEBUG: spotipy_handling.py - Found {len(backend_results['albums']['items'])} albums")
                                 for album in backend_results['albums']['items']:
                                     album_data = {
                                         'name': album.get('name', 'Unknown Album'),
@@ -651,6 +674,9 @@ async def get_album_search_input(screen, font):
                                         'artist': album.get('artists', [{}])[0].get('name', 'Unknown Artist') if album.get('artists') else 'Unknown Artist'
                                     }
                                     search_results.append(album_data)
+                                    print(f"DEBUG: spotipy_handling.py - Added album: {album_data['name']} by {album_data['artist']}")
+                            else:
+                                print(f"DEBUG: spotipy_handling.py - No albums found in search results")
                             album_covers.clear()
                     elif event.key == pygame.K_BACKSPACE:
                         text = text[:-1]
@@ -764,6 +790,9 @@ async def search_album_via_backend(query):
     import json
     
     js_code = f'''
+    // Clear previous search result
+    window.search_result = null;
+    
     fetch("{BACKEND_URL}/search?q={query}", {{
         method: "GET",
         credentials: "include"
@@ -782,10 +811,11 @@ async def search_album_via_backend(query):
     try:
         js.eval(js_code)
         import asyncio
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.3)  # Wait longer for the fetch to complete
         
         if hasattr(js.window, 'search_result'):
             result = js.window.search_result
+            print(f"DEBUG: spotipy_handling.py - Search result from window: {result}")
             
             # Handle different result types
             if isinstance(result, dict):

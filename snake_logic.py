@@ -456,7 +456,8 @@ async def game_over(screen, score):
                 return
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if button_rect.collidepoint(event.pos):
-                    await start_menu()
+                    # Go directly to album search instead of start menu
+                    await start_game(screen)
                     return
         
         screen.fill(BLACK)

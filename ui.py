@@ -189,15 +189,21 @@ async def start_menu():
     print("DEBUG: ui.py - start_menu called")
     clock = pygame.time.Clock()
     
-    # For now, always show login screen
-    print("DEBUG: ui.py - Always showing login screen for now")
-    login_success = await login_screen()
-    if not login_success:
-        print("DEBUG: ui.py - Login failed, exiting")
-        await quit_game_async()
-        return
+    # Check if already authenticated
+    print("DEBUG: ui.py - Checking if already authenticated")
+    is_authenticated = await check_authenticated()
+    if not is_authenticated:
+        print("DEBUG: ui.py - Not authenticated, showing login screen")
+        login_success = await login_screen()
+        if not login_success:
+            print("DEBUG: ui.py - Login failed, exiting")
+            await quit_game_async()
+            return
+        print("DEBUG: ui.py - Login successful")
+    else:
+        print("DEBUG: ui.py - Already authenticated, proceeding to main menu")
     
-    print("DEBUG: ui.py - Login successful, proceeding to main menu")
+    print("DEBUG: ui.py - Proceeding to main menu")
     
     # Play background music for the main menu
     print("DEBUG: ui.py - Playing background music")
