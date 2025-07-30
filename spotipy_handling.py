@@ -275,6 +275,91 @@ def get_album_tracks(album_id):
     print("DEBUG: spotipy_handling.py - get_album_tracks should be handled by backend in browser build")
     return None
 
+async def download_and_resize_album_cover_async(url, target_width, target_height):
+    """Download and resize album cover asynchronously using backend proxy to avoid CORS"""
+    print(f"DEBUG: spotipy_handling.py - download_and_resize_album_cover_async called with url: {url}")
+    
+    if not url:
+        print(f"DEBUG: spotipy_handling.py - No URL provided, creating fallback")
+        return create_fallback_album_cover(target_width, target_height)
+    
+    import js
+    import base64
+    
+    # Use backend proxy to avoid CORS issues
+    js_code = f'''
+    fetch("{BACKEND_URL}/proxy_image", {{
+        method: "POST",
+        headers: {{
+            "Content-Type": "application/json"
+        }},
+        credentials: "include",
+        body: JSON.stringify({{"image_url": "{url}"}})
+    }})
+    .then(response => {{
+        if (!response.ok) {{
+            throw new Error(`HTTP error! status: ${{response.status}}`);
+        }}
+        return response.blob();
+    }})
+    .then(blob => {{
+        return new Promise((resolve, reject) => {{
+            const reader = new FileReader();
+            reader.onload = () => {{
+                const base64 = reader.result.split(',')[1];
+                window.image_download_result = {{ status: 200, data: base64 }};
+            }};
+            reader.onerror = () => {{
+                window.image_download_result = {{ status: 500, error: "Failed to read blob" }};
+            }};
+            reader.readAsDataURL(blob);
+        }});
+    }})
+    .catch(error => {{
+        console.log("Image download error:", error);
+        window.image_download_result = {{ status: 500, error: error.toString() }};
+    }});
+    '''
+    
+    try:
+        js.eval(js_code)
+        await asyncio.sleep(0.3)  # Wait a bit longer for the fetch to complete
+        
+        if hasattr(js.window, 'image_download_result'):
+            result = js.window.image_download_result
+            print(f"DEBUG: spotipy_handling.py - Image download result: {result}")
+            
+            if isinstance(result, dict) and result.get('status') == 200:
+                # Convert base64 to pygame surface
+                try:
+                    base64_data = result.get('data')
+                    if base64_data:
+                        # Create a temporary file-like object from base64
+                        image_data = base64.b64decode(base64_data)
+                        import io
+                        image_stream = io.BytesIO(image_data)
+                        
+                        # Load image with pygame
+                        image = pygame.image.load(image_stream)
+                        
+                        # Resize to target dimensions
+                        resized_image = pygame.transform.scale(image, (target_width, target_height))
+                        
+                        print(f"DEBUG: spotipy_handling.py - Album cover downloaded and resized successfully: {resized_image.get_size()}")
+                        return resized_image
+                except Exception as e:
+                    print(f"DEBUG: spotipy_handling.py - Error processing downloaded image: {e}")
+                    return create_fallback_album_cover(target_width, target_height)
+            else:
+                print(f"DEBUG: spotipy_handling.py - Image download failed: {result}")
+                return create_fallback_album_cover(target_width, target_height)
+        else:
+            print("DEBUG: spotipy_handling.py - No image download result available")
+            return create_fallback_album_cover(target_width, target_height)
+    except Exception as e:
+        print(f"DEBUG: spotipy_handling.py - Error in download_and_resize_album_cover_async: {e}")
+        return create_fallback_album_cover(target_width, target_height)
+
 def download_and_resize_album_cover(url, target_width, target_height):
     print(f"DEBUG: spotipy_handling.py - download_and_resize_album_cover called with url: {url}")
     
@@ -282,10 +367,21 @@ def download_and_resize_album_cover(url, target_width, target_height):
         print(f"DEBUG: spotipy_handling.py - No URL provided, creating fallback")
         return create_fallback_album_cover(target_width, target_height)
     
-    # For now, just create fallback covers quickly to prevent blocking
-    # TODO: Implement async image downloading later
-    print(f"DEBUG: spotipy_handling.py - Creating fallback cover (async image downloading not implemented)")
-    return create_fallback_album_cover(target_width, target_height)
+    # Use the async version for browser builds
+    try:
+        # Create a simple event loop to run the async function
+        import asyncio
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If we're already in an async context, we can't use run_until_complete
+            # So we'll use the fallback for now
+            print(f"DEBUG: spotipy_handling.py - Using fallback cover (async context)")
+            return create_fallback_album_cover(target_width, target_height)
+        else:
+            return loop.run_until_complete(download_and_resize_album_cover_async(url, target_width, target_height))
+    except Exception as e:
+        print(f"DEBUG: spotipy_handling.py - Error in sync wrapper: {e}")
+        return create_fallback_album_cover(target_width, target_height)
 
 def create_fallback_album_cover(target_width, target_height):
     """Create a fallback album cover when image download fails"""
@@ -593,9 +689,22 @@ async def get_album_search_input(screen, font):
     quit_button_font = pygame.font.SysFont("Press Start 2P", 20)
     quit_button_rect_local = pygame.Rect(20, height - 70, 250, 50)
 
+    async def download_album_covers_async():
+        """Download album covers asynchronously in the background"""
+        nonlocal album_covers
+        for album in search_results:
+            if album['image_url'] and album['uri'] not in album_covers:
+                try:
+                    cover = await download_and_resize_album_cover_async(album['image_url'], 50, 50)
+                    if cover:
+                        album_covers[album['uri']] = cover
+                        print(f"DEBUG: spotipy_handling.py - Downloaded cover for {album['name']}")
+                except Exception as e:
+                    print(f"DEBUG: spotipy_handling.py - Failed to download cover for {album['name']}: {e}")
+
     def draw_search_results_local():
+        nonlocal album_covers
         if search_results:
-            pygame.draw.rect(screen, WHITE, results_area)
             y_offset = results_area.y + 10
             for album in search_results:
                 result_rect = pygame.Rect(results_area.x + 5, y_offset, results_area.width - 10, 70)
@@ -605,7 +714,8 @@ async def get_album_search_input(screen, font):
                     pygame.draw.rect(screen, WHITE, result_rect)
                 pygame.draw.rect(screen, DARK_BLUE, result_rect, 1)
                 if album['image_url'] and album['uri'] not in album_covers:
-                    album_covers[album['uri']] = download_and_resize_album_cover(album['image_url'], 50, 50)
+                    # Use fallback cover for now, will be replaced by async download
+                    album_covers[album['uri']] = create_fallback_album_cover(50, 50)
                 if album['uri'] in album_covers and album_covers[album['uri']]:
                     screen.blit(album_covers[album['uri']], (result_rect.x + 10, result_rect.y + 10))
                     text_start_x = result_rect.x + 70
@@ -682,6 +792,8 @@ async def get_album_search_input(screen, font):
                                     }
                                     search_results.append(album_data)
                                 print(f"DEBUG: spotipy_handling.py - Added {len(search_results)} albums to search results")
+                                # Start downloading album covers in the background
+                                asyncio.create_task(download_album_covers_async())
                             else:
                                 print(f"DEBUG: spotipy_handling.py - No albums found in search results")
                             album_covers.clear()

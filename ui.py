@@ -184,26 +184,10 @@ async def login_screen():
         clock.tick(30)
         await asyncio.sleep(0)
 
-async def start_menu():
-    """Displays the start menu, handles login, and starts the game or quits."""
-    print("DEBUG: ui.py - start_menu called")
+async def main_menu():
+    """Displays the main menu without checking authentication."""
+    print("DEBUG: ui.py - main_menu called (no auth check)")
     clock = pygame.time.Clock()
-    
-    # Check if already authenticated
-    print("DEBUG: ui.py - Checking if already authenticated")
-    is_authenticated = await check_authenticated()
-    if not is_authenticated:
-        print("DEBUG: ui.py - Not authenticated, showing login screen")
-        login_success = await login_screen()
-        if not login_success:
-            print("DEBUG: ui.py - Login failed, exiting")
-            await quit_game_async()
-            return
-        print("DEBUG: ui.py - Login successful")
-    else:
-        print("DEBUG: ui.py - Already authenticated, proceeding to main menu")
-    
-    print("DEBUG: ui.py - Proceeding to main menu")
     
     # Play background music for the main menu
     print("DEBUG: ui.py - Playing background music")
@@ -272,6 +256,28 @@ async def start_menu():
         pygame.display.update()
         clock.tick(60)
         await asyncio.sleep(0)
+
+async def start_menu():
+    """Displays the start menu, handles login, and starts the game or quits."""
+    print("DEBUG: ui.py - start_menu called")
+    clock = pygame.time.Clock()
+    
+    # Check if already authenticated
+    print("DEBUG: ui.py - Checking if already authenticated")
+    is_authenticated = await check_authenticated()
+    if not is_authenticated:
+        print("DEBUG: ui.py - Not authenticated, showing login screen")
+        login_success = await login_screen()
+        if not login_success:
+            print("DEBUG: ui.py - Login failed, exiting")
+            await quit_game_async()
+            return
+        print("DEBUG: ui.py - Login successful")
+    else:
+        print("DEBUG: ui.py - Already authenticated, proceeding to main menu")
+    
+    print("DEBUG: ui.py - Proceeding to main menu")
+    await main_menu()
 
 async def main():
     """Main asynchronous entry point for the application UI (intended to be called from main.py)."""

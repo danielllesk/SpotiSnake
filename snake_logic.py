@@ -4,11 +4,11 @@ import random
 import asyncio
 import traceback
 from spotipy_handling import (
-    get_album_search_input, download_and_resize_album_cover, 
+    get_album_search_input, download_and_resize_album_cover, download_and_resize_album_cover_async,
     play_random_track_from_album, play_uri_with_details, safe_pause_playback, play_track_via_backend
 )
 from shared_constants import * 
-from ui import start_menu, quit_game_async
+from ui import start_menu, main_menu, quit_game_async
 
 def render_text_with_outline(text_str, font, main_color, outline_color, thickness):
     """Renders text with a specified outline color and thickness."""
@@ -91,7 +91,7 @@ async def start_game(screen):
     
     if album_result == "BACK_TO_MENU":
         print("DEBUG: snake_logic.py - User chose back to menu (album_result == BACK_TO_MENU)")
-        await start_menu()
+        await main_menu()
         return
     
     if not album_result:
@@ -101,7 +101,7 @@ async def start_game(screen):
         await start_game(screen)
         return
 
-    album_cover_surface = download_and_resize_album_cover(album_result['image_url'], width, height)
+    album_cover_surface = await download_and_resize_album_cover_async(album_result['image_url'], width, height)
     if album_cover_surface is None:
         print("DEBUG: snake_logic.py - Failed to load album cover")
         # Instead of quitting, loop back to album search
