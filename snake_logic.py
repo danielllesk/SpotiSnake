@@ -101,12 +101,10 @@ async def start_game(screen):
         await start_game(screen)
         return
 
-    print(f"DEBUG: snake_logic.py - Loading album cover for: {album_result.get('name', 'Unknown')}")
     album_cover_surface = download_and_resize_album_cover(album_result['image_url'], width, height)
     if album_cover_surface is None:
         print("DEBUG: snake_logic.py - Failed to load album cover")
         # Instead of quitting, loop back to album search
-        print("DEBUG: snake_logic.py - Restarting album search UI due to failed album cover load")
         await start_game(screen)
         return
 
@@ -127,8 +125,12 @@ async def start_game(screen):
     song_display_state["name"] = "Loading first game song..."
     song_display_state["artist"] = ""
     print("DEBUG: snake_logic.py - Starting first track")
-    await play_track_via_backend(album_result['uri'], 0)
-    # Optionally, update the UI with a message like "Playing album..."
+    
+    # Get album tracks and play a random one
+    from spotipy_handling import play_random_track_from_album
+    print(f"DEBUG: snake_logic.py - Playing random track from album: {album_result['uri']}")
+    await play_random_track_from_album(album_result['uri'], update_song_display_from_callback)
+    print("DEBUG: snake_logic.py - First track started")
 
     album_pieces = cut_image_into_pieces(album_cover_surface, ALBUM_GRID_SIZE, ALBUM_GRID_SIZE)
     revealed_pieces = set()

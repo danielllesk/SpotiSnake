@@ -89,9 +89,11 @@ async def login_screen():
     small_font = pygame.font.SysFont("Press Start 2P", 20)
     instructions = [
         "Click to login with Spotify",
-        "Browser will open for log-in",
+        "Browser will open for log-in", 
         "Return here after log-in",
-        "NOTE: Spotify Premium needed and open on device"
+        "NOTE: Spotify Premium needed",
+        "IMPORTANT: Open Spotify app and start playing music",
+        "This is required for the game to work!"
     ]
 
     # Force a full redraw and clear event queue to fix first-load issues
@@ -137,19 +139,19 @@ async def login_screen():
                         print("DEBUG: ui.py - Initiating backend login")
                         backend_login()
                         print("DEBUG: ui.py - Backend login initiated")
-                        # Wait for authentication to complete
-                        auth_success = False
-                        for _ in range(30):  # Wait up to 30 seconds
-                            await asyncio.sleep(1)
-                            if check_authenticated():
-                                print("DEBUG: ui.py - Authentication successful")
-                                auth_success = True
-                                break
+                        
+                        # Give user time to complete login in browser
+                        print("DEBUG: ui.py - Waiting for user to complete login...")
+                        await asyncio.sleep(3)  # Wait 3 seconds for user to complete login
+                        
+                        # Check if authentication was successful
+                        auth_success = await check_authenticated()
                         if auth_success:
+                            print("DEBUG: ui.py - Authentication successful")
                             print("DEBUG: ui.py - Returning True from login_screen")
                             return True
                         else:
-                            error_message = "Login failed. Ensure Spotify is open & Premium."
+                            error_message = "Login failed. Please try again."
                             error_timer = time.time()
                     except Exception as e:
                         print(f"DEBUG: ui.py - Login error: {e}")
@@ -191,15 +193,24 @@ async def start_menu():
     print("DEBUG: ui.py - start_menu called")
     clock = pygame.time.Clock()
     
-    # First, show login screen
-    print("DEBUG: ui.py - Showing login screen")
-    login_success = await login_screen()
-    if not login_success:
-        print("DEBUG: ui.py - Login failed, exiting")
-        await quit_game_async()
-        return
+    # Check authentication status first
+    print("DEBUG: ui.py - Checking authentication status")
+    auth_status = await check_authenticated()
+    print(f"DEBUG: ui.py - Authentication status: {auth_status}")
     
-    print("DEBUG: ui.py - Login successful, showing main menu")
+    if not auth_status:
+        print("DEBUG: ui.py - Not authenticated, showing login screen")
+        login_success = await login_screen()
+        if not login_success:
+            print("DEBUG: ui.py - Login failed, exiting")
+            await quit_game_async()
+            return
+        
+        # If login was successful, assume we're authenticated
+        print("DEBUG: ui.py - Login successful, assuming authenticated")
+        auth_status = True
+    
+    print("DEBUG: ui.py - Authenticated, showing main menu")
     
     # Play background music for the main menu
     print("DEBUG: ui.py - Playing background music")
