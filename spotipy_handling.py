@@ -328,30 +328,72 @@ async def download_and_resize_album_cover_async(url, target_width, target_height
         if hasattr(js.window, 'image_download_result'):
             result = js.window.image_download_result
             print(f"DEBUG: spotipy_handling.py - Image download result: {result}")
+            print(f"DEBUG: spotipy_handling.py - Result type: {type(result)}")
+            if hasattr(result, '__dict__'):
+                print(f"DEBUG: spotipy_handling.py - Result attributes: {dir(result)}")
             
-            if isinstance(result, dict) and result.get('status') == 200:
-                # Convert base64 to pygame surface
-                try:
-                    base64_data = result.get('data')
-                    if base64_data:
-                        # Create a temporary file-like object from base64
-                        image_data = base64.b64decode(base64_data)
-                        import io
-                        image_stream = io.BytesIO(image_data)
+            # Handle different result types
+            if isinstance(result, dict):
+                status = result.get('status', 500)
+                if status == 200:
+                    # Convert base64 to pygame surface
+                    try:
+                        base64_data = result.get('data')
+                        if base64_data:
+                            # Create a temporary file-like object from base64
+                            image_data = base64.b64decode(base64_data)
+                            import io
+                            image_stream = io.BytesIO(image_data)
+                            
+                            # Load image with pygame
+                            image = pygame.image.load(image_stream)
+                            
+                            # Resize to target dimensions
+                            resized_image = pygame.transform.scale(image, (target_width, target_height))
+                            
+                            print(f"DEBUG: spotipy_handling.py - Album cover downloaded and resized successfully: {resized_image.get_size()}")
+                            return resized_image
+                    except Exception as e:
+                        print(f"DEBUG: spotipy_handling.py - Error processing downloaded image: {e}")
+                        return create_fallback_album_cover(target_width, target_height)
+                else:
+                    error_msg = result.get('error', 'Unknown error')
+                    print(f"DEBUG: spotipy_handling.py - Image download failed with status {status}: {error_msg}")
+                    return create_fallback_album_cover(target_width, target_height)
+            elif hasattr(result, 'status'):
+                # Handle JavaScript object with status property
+                status = result.status
+                if status == 200:
+                    try:
+                        # Try to access the data property
+                        if hasattr(result, 'data'):
+                            base64_data = result.data
+                        else:
+                            print(f"DEBUG: spotipy_handling.py - No data property in result object")
+                            return create_fallback_album_cover(target_width, target_height)
                         
-                        # Load image with pygame
-                        image = pygame.image.load(image_stream)
-                        
-                        # Resize to target dimensions
-                        resized_image = pygame.transform.scale(image, (target_width, target_height))
-                        
-                        print(f"DEBUG: spotipy_handling.py - Album cover downloaded and resized successfully: {resized_image.get_size()}")
-                        return resized_image
-                except Exception as e:
-                    print(f"DEBUG: spotipy_handling.py - Error processing downloaded image: {e}")
+                        if base64_data:
+                            # Create a temporary file-like object from base64
+                            image_data = base64.b64decode(base64_data)
+                            import io
+                            image_stream = io.BytesIO(image_data)
+                            
+                            # Load image with pygame
+                            image = pygame.image.load(image_stream)
+                            
+                            # Resize to target dimensions
+                            resized_image = pygame.transform.scale(image, (target_width, target_height))
+                            
+                            print(f"DEBUG: spotipy_handling.py - Album cover downloaded and resized successfully: {resized_image.get_size()}")
+                            return resized_image
+                    except Exception as e:
+                        print(f"DEBUG: spotipy_handling.py - Error processing downloaded image: {e}")
+                        return create_fallback_album_cover(target_width, target_height)
+                else:
+                    print(f"DEBUG: spotipy_handling.py - Image download failed with status {status}")
                     return create_fallback_album_cover(target_width, target_height)
             else:
-                print(f"DEBUG: spotipy_handling.py - Image download failed: {result}")
+                print(f"DEBUG: spotipy_handling.py - Unexpected result type: {type(result)}")
                 return create_fallback_album_cover(target_width, target_height)
         else:
             print("DEBUG: spotipy_handling.py - No image download result available")
@@ -799,7 +841,7 @@ async def get_album_search_input(screen, font):
                                                 album_covers[album['uri']] = cover
                                                 print(f"DEBUG: spotipy_handling.py - Downloaded cover for {album['name']}")
                                             else:
-                                                print(f"DEBUG: spotipy_handling.py - Failed to download cover for {album['name']}")
+                                                print(f"DEBUG: spotipy_handling.py - Failed to download cover for {album['name']} - using fallback")
                                         except Exception as e:
                                             print(f"DEBUG: spotipy_handling.py - Error downloading cover for {album['name']}: {e}")
                                 print("DEBUG: spotipy_handling.py - Album cover downloads completed")
