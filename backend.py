@@ -26,9 +26,11 @@ is_development = os.environ.get('FLASK_ENV') == 'development'
 if is_development:
     app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # More permissive for local development
     app.config['SESSION_COOKIE_SECURE'] = False    # Allow HTTP for local development
+    app.config['SESSION_COOKIE_DOMAIN'] = None     # No domain restriction for local development
 else:
     app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Allow cross-site cookies
     app.config['SESSION_COOKIE_SECURE'] = True      # Required for SameSite=None (must use HTTPS)
+    app.config['SESSION_COOKIE_DOMAIN'] = '.onrender.com'  # Allow subdomain access
 
 # More permissive CORS configuration
 '''CORS(app, supports_credentials=True, 
@@ -286,19 +288,34 @@ def callback():
 @app.route('/me')
 def me():
     logging.debug("DEBUG: backend.py - /me endpoint called")
+    
+    # Check session first
+    token_info = session.get('token_info')
+    if not token_info:
+        logging.debug("DEBUG: backend.py - No token_info in session for /me")
+        response = jsonify({'error': 'Not authenticated - no token in session'}), 401
+        return add_cors_headers(response[0])
+    
+    logging.debug(f"DEBUG: backend.py - Token info found: {type(token_info)}")
+    
     sp = get_spotify()
     if not sp:
-        logging.debug("DEBUG: backend.py - Not authenticated for /me")
-        response = jsonify({'error': 'Not authenticated'}), 401
+        logging.debug("DEBUG: backend.py - Failed to create Spotify client for /me")
+        response = jsonify({'error': 'Not authenticated - invalid token'}), 401
         return add_cors_headers(response[0])
+    
     try:
         user_info = sp.current_user()
         logging.debug(f"DEBUG: backend.py - User info retrieved: {user_info.get('id', 'unknown')}")
         response = jsonify(user_info)
         return add_cors_headers(response)
     except SpotifyException as e:
-        logging.error(f"SpotifyException: {e}")
-        response = jsonify({'error': 'Spotify token expired or invalid'}), 401
+        logging.error(f"SpotifyException in /me: {e}")
+        response = jsonify({'error': f'Spotify error: {str(e)}'}), 401
+        return add_cors_headers(response[0])
+    except Exception as e:
+        logging.error(f"Unexpected error in /me: {e}")
+        response = jsonify({'error': f'Unexpected error: {str(e)}'}), 500
         return add_cors_headers(response[0])
 
 @app.route('/search', methods=['GET', 'OPTIONS'])
@@ -550,6 +567,46 @@ def ping():
     response = jsonify({
         'message': 'pong',
         'origin': request.headers.get('Origin', 'No Origin'),
+        'timestamp': time.time()
+    })
+    return add_cors_headers(response)
+
+@app.route('/test_session', methods=['GET', 'OPTIONS'])
+def test_session():
+    """Test session functionality"""
+    logging.debug("DEBUG: backend.py - /test_session endpoint called")
+    token_info = session.get('token_info')
+    has_token = token_info is not None
+    
+    response = jsonify({
+        'has_token': has_token,
+        'token_type': type(token_info).__name__ if token_info else 'None',
+        'has_access_token': 'access_token' in token_info if has_token and isinstance(token_info, dict) else False,
+        'session_id': session.get('_id', 'No session ID'),
+        'origin': request.headers.get('Origin', 'No Origin'),
+        'timestamp': time.time()
+    })
+    return add_cors_headers(response)
+
+@app.route('/force_auth', methods=['GET', 'OPTIONS'])
+def force_auth():
+    """Force authentication for testing - creates a dummy session"""
+    logging.debug("DEBUG: backend.py - /force_auth endpoint called")
+    
+    # Create a dummy token for testing
+    dummy_token = {
+        'access_token': 'dummy_token_for_testing',
+        'token_type': 'Bearer',
+        'expires_in': 3600,
+        'scope': SPOTIFY_AUTH_SCOPE
+    }
+    
+    session['token_info'] = dummy_token
+    logging.debug("DEBUG: backend.py - Created dummy token in session")
+    
+    response = jsonify({
+        'message': 'Dummy authentication created for testing',
+        'has_token': True,
         'timestamp': time.time()
     })
     return add_cors_headers(response)
