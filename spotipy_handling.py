@@ -280,127 +280,12 @@ async def download_and_resize_album_cover_async(url, target_width, target_height
     print(f"DEBUG: spotipy_handling.py - download_and_resize_album_cover_async called with url: {url}")
     
     if not url:
-        print(f"DEBUG: spotipy_handling.py - No URL provided, creating fallback")
+        print("DEBUG: spotipy_handling.py - No URL provided, creating fallback cover")
         return create_fallback_album_cover(target_width, target_height)
     
-    import js
-    import base64
-    
-    # Use backend proxy to avoid CORS issues
-    js_code = f'''
-    fetch("{BACKEND_URL}/proxy_image", {{
-        method: "POST",
-        headers: {{
-            "Content-Type": "application/json"
-        }},
-        credentials: "include",
-        body: JSON.stringify({{"image_url": "{url}"}})
-    }})
-    .then(response => {{
-        if (!response.ok) {{
-            throw new Error(`HTTP error! status: ${{response.status}}`);
-        }}
-        return response.blob();
-    }})
-    .then(blob => {{
-        return new Promise((resolve, reject) => {{
-            const reader = new FileReader();
-            reader.onload = () => {{
-                const base64 = reader.result.split(',')[1];
-                window.image_download_result = {{ status: 200, data: base64 }};
-            }};
-            reader.onerror = () => {{
-                window.image_download_result = {{ status: 500, error: "Failed to read blob" }};
-            }};
-            reader.readAsDataURL(blob);
-        }});
-    }})
-    .catch(error => {{
-        console.log("Image download error:", error);
-        window.image_download_result = {{ status: 500, error: error.toString() }};
-    }});
-    '''
-    
-    try:
-        js.eval(js_code)
-        await asyncio.sleep(0.3)  # Wait a bit longer for the fetch to complete
-        
-        if hasattr(js.window, 'image_download_result'):
-            result = js.window.image_download_result
-            print(f"DEBUG: spotipy_handling.py - Image download result: {result}")
-            print(f"DEBUG: spotipy_handling.py - Result type: {type(result)}")
-            if hasattr(result, '__dict__'):
-                print(f"DEBUG: spotipy_handling.py - Result attributes: {dir(result)}")
-            
-            # Handle different result types
-            if isinstance(result, dict):
-                status = result.get('status', 500)
-                if status == 200:
-                    # Convert base64 to pygame surface
-                    try:
-                        base64_data = result.get('data')
-                        if base64_data:
-                            # Create a temporary file-like object from base64
-                            image_data = base64.b64decode(base64_data)
-                            import io
-                            image_stream = io.BytesIO(image_data)
-                            
-                            # Load image with pygame
-                            image = pygame.image.load(image_stream)
-                            
-                            # Resize to target dimensions
-                            resized_image = pygame.transform.scale(image, (target_width, target_height))
-                            
-                            print(f"DEBUG: spotipy_handling.py - Album cover downloaded and resized successfully: {resized_image.get_size()}")
-                            return resized_image
-                    except Exception as e:
-                        print(f"DEBUG: spotipy_handling.py - Error processing downloaded image: {e}")
-                        return create_fallback_album_cover(target_width, target_height)
-                else:
-                    error_msg = result.get('error', 'Unknown error')
-                    print(f"DEBUG: spotipy_handling.py - Image download failed with status {status}: {error_msg}")
-                    return create_fallback_album_cover(target_width, target_height)
-            elif hasattr(result, 'status'):
-                # Handle JavaScript object with status property
-                status = result.status
-                if status == 200:
-                    try:
-                        # Try to access the data property
-                        if hasattr(result, 'data'):
-                            base64_data = result.data
-                        else:
-                            print(f"DEBUG: spotipy_handling.py - No data property in result object")
-                            return create_fallback_album_cover(target_width, target_height)
-                        
-                        if base64_data:
-                            # Create a temporary file-like object from base64
-                            image_data = base64.b64decode(base64_data)
-                            import io
-                            image_stream = io.BytesIO(image_data)
-                            
-                            # Load image with pygame
-                            image = pygame.image.load(image_stream)
-                            
-                            # Resize to target dimensions
-                            resized_image = pygame.transform.scale(image, (target_width, target_height))
-                            
-                            print(f"DEBUG: spotipy_handling.py - Album cover downloaded and resized successfully: {resized_image.get_size()}")
-                            return resized_image
-                    except Exception as e:
-                        print(f"DEBUG: spotipy_handling.py - Error processing downloaded image: {e}")
-                        return create_fallback_album_cover(target_width, target_height)
-                else:
-                    print(f"DEBUG: spotipy_handling.py - Image download failed with status {status}")
-                    return create_fallback_album_cover(target_width, target_height)
-            else:
-                print(f"DEBUG: spotipy_handling.py - Unexpected result type: {type(result)}")
-                return create_fallback_album_cover(target_width, target_height)
-        else:
-            print("DEBUG: spotipy_handling.py - No image download result available")
-            return create_fallback_album_cover(target_width, target_height)
-    except Exception as e:
-        print(f"DEBUG: spotipy_handling.py - Error in download_and_resize_album_cover_async: {e}")
-        return create_fallback_album_cover(target_width, target_height)
+    # For browser environments, create visual album covers instead of trying to load images
+    print(f"DEBUG: spotipy_handling.py - Creating visual album cover for browser environment")
+    return create_visual_album_cover(url, target_width, target_height)
 
 def download_and_resize_album_cover(url, target_width, target_height):
     print(f"DEBUG: spotipy_handling.py - download_and_resize_album_cover called with url: {url}")
@@ -450,6 +335,46 @@ def create_fallback_album_cover(target_width, target_height):
     except Exception as e:
         print(f"DEBUG: spotipy_handling.py - Error creating fallback album cover: {e}")
         return None
+
+def create_visual_album_cover(image_url, target_width, target_height):
+    """Create a visual album cover that works in browser environments"""
+    print(f"DEBUG: spotipy_handling.py - create_visual_album_cover called with url: {image_url}, size: {target_width}x{target_height}")
+    try:
+        # Generate a unique color pattern based on the image URL
+        import hashlib
+        hash_value = hashlib.md5(image_url.encode()).hexdigest()
+        print(f"DEBUG: spotipy_handling.py - Generated hash: {hash_value[:8]}...")
+        
+        # Create a surface
+        surface = pygame.Surface((target_width, target_height))
+        print(f"DEBUG: spotipy_handling.py - Created surface: {surface.get_size()}")
+        
+        # Generate a gradient pattern using the hash
+        for y in range(target_height):
+            for x in range(target_width):
+                # Use hash to generate consistent colors
+                color_index = (x + y * target_width) % len(hash_value)
+                r = int(hash_value[color_index:color_index+2], 16)
+                g = int(hash_value[(color_index+2)%len(hash_value):(color_index+4)%len(hash_value)], 16)
+                b = int(hash_value[(color_index+4)%len(hash_value):(color_index+6)%len(hash_value)], 16)
+                
+                # Add some variation based on position
+                r = (r + x * 2) % 256
+                g = (g + y * 2) % 256
+                b = (b + (x + y) * 3) % 256
+                
+                surface.set_at((x, y), (r, g, b))
+        
+        # Add a border
+        pygame.draw.rect(surface, (0, 0, 0), surface.get_rect(), 2)
+        
+        print(f"DEBUG: spotipy_handling.py - Created visual album cover successfully: {target_width}x{target_height}")
+        return surface
+    except Exception as e:
+        print(f"DEBUG: spotipy_handling.py - Error creating visual album cover: {e}")
+        import traceback
+        traceback.print_exc()
+        return create_fallback_album_cover(target_width, target_height)
 
 def get_spotify_device():
     global device_id_cache
@@ -623,17 +548,21 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
     import random
     
     js_code = f'''
+    console.log("JS: Fetching album tracks for album_id:", "{album_id}");
     fetch("{BACKEND_URL}/album_tracks?album_id={album_id}", {{
         method: "GET",
         credentials: "include"
     }})
     .then(response => {{
+        console.log("JS: Album tracks response status:", response.status);
         return response.text();
     }})
     .then(text => {{
+        console.log("JS: Album tracks response text:", text);
         window.album_tracks_sync_result = {{ status: 200, text: text }};
     }})
     .catch(error => {{
+        console.log("JS: Album tracks error:", error);
         window.album_tracks_sync_result = {{ status: 500, error: error.toString() }};
     }});
     '''
@@ -641,21 +570,32 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
     try:
         js.eval(js_code)
         import asyncio
-        await asyncio.sleep(0.1)  # Wait for async operation
+        await asyncio.sleep(0.3)  # Wait longer for the fetch to complete
         
         tracks_data = None
         if hasattr(js.window, 'album_tracks_sync_result'):
             result = js.window.album_tracks_sync_result
+            print(f"DEBUG: spotipy_handling.py - Album tracks result: {result}")
+            print(f"DEBUG: spotipy_handling.py - Album tracks result type: {type(result)}")
+            
             # Handle both object and string cases
             if isinstance(result, dict):
                 if result.get('status') == 200:
-                    tracks_data = json.loads(result.get('text', '{}'))
+                    try:
+                        tracks_data = json.loads(result.get('text', '{}'))
+                        print(f"DEBUG: spotipy_handling.py - Parsed tracks data: {tracks_data}")
+                    except json.JSONDecodeError as e:
+                        print(f"DEBUG: spotipy_handling.py - JSON decode error: {e}")
+                        print(f"DEBUG: spotipy_handling.py - Raw text: {result.get('text', '{}')}")
+                else:
+                    print(f"DEBUG: spotipy_handling.py - Album tracks failed with status: {result.get('status')}")
             elif isinstance(result, str):
                 # If it's a string, try to parse it as JSON
                 try:
                     tracks_data = json.loads(result)
-                except:
-                    pass
+                    print(f"DEBUG: spotipy_handling.py - Parsed tracks data from string: {tracks_data}")
+                except json.JSONDecodeError as e:
+                    print(f"DEBUG: spotipy_handling.py - JSON decode error from string: {e}")
             else:
                 # If it's an object, try to access properties directly
                 try:
@@ -663,11 +603,19 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
                     if status == 200:
                         text = getattr(result, 'text', '{}')
                         tracks_data = json.loads(text)
-                except:
-                    pass
+                        print(f"DEBUG: spotipy_handling.py - Parsed tracks data from object: {tracks_data}")
+                    else:
+                        print(f"DEBUG: spotipy_handling.py - Album tracks failed with status: {status}")
+                except Exception as e:
+                    print(f"DEBUG: spotipy_handling.py - Error accessing object properties: {e}")
+        else:
+            print("DEBUG: spotipy_handling.py - No album tracks result available")
         
         tracks = tracks_data.get('items', []) if tracks_data else []
+        print(f"DEBUG: spotipy_handling.py - Found {len(tracks)} tracks")
+        
         if not tracks:
+            print("DEBUG: spotipy_handling.py - No tracks found, calling callback with error")
             song_info_updater_callback("No Tracks In Album", "N/A", False)
             return
         
@@ -678,14 +626,22 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
         position_ms = random.randint(0, max(0, track.get('duration_ms', 0) - 30000))
         is_easter_egg_track_selected = (chosen_track_uri == EASTER_EGG_TRACK_URI)
         
+        print(f"DEBUG: spotipy_handling.py - Selected track: {track_name} by {track_artist}")
+        print(f"DEBUG: spotipy_handling.py - Track URI: {chosen_track_uri}")
+        print(f"DEBUG: spotipy_handling.py - Position: {position_ms}ms")
+        
         # Use async approach for playing track
         played_successfully = await play_track_via_backend(chosen_track_uri, position_ms)
         if played_successfully:
+            print(f"DEBUG: spotipy_handling.py - Track played successfully")
             song_info_updater_callback(track_name, track_artist, is_easter_egg_track_selected)
         else:
+            print(f"DEBUG: spotipy_handling.py - Track play failed")
             song_info_updater_callback(track_name, f"(Failed: {track_artist})", False)
     except Exception as e:
         print(f"DEBUG: spotipy_handling.py - Error in play_random_track_from_album: {e}")
+        import traceback
+        traceback.print_exc()
         song_info_updater_callback("Error Loading Album", "N/A", False)
 
 async def safe_pause_playback():

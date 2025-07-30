@@ -136,6 +136,10 @@ async def start_game(screen):
     revealed_pieces = set()
     total_album_pieces = (width // ALBUM_GRID_SIZE) * (height // ALBUM_GRID_SIZE)
     print(f"DEBUG: snake_logic.py - Album cut into {len(album_pieces)} pieces")
+    print(f"DEBUG: snake_logic.py - Album cover surface size: {album_cover_surface.get_size()}")
+    print(f"DEBUG: snake_logic.py - ALBUM_GRID_SIZE: {ALBUM_GRID_SIZE}")
+    print(f"DEBUG: snake_logic.py - Total album pieces expected: {total_album_pieces}")
+    print(f"DEBUG: snake_logic.py - Album pieces keys: {list(album_pieces.keys())[:5]}...")  # Show first 5 keys
 
     snake_pos = [width // 2, height // 2]
     snake_body = [[snake_pos[0] - i * GRID_SIZE, snake_pos[1]] for i in range(5)]
@@ -227,7 +231,8 @@ async def start_game(screen):
                 print(f"DEBUG: snake_logic.py - Score milestone reached: {score}, changing song")
                 song_display_state["name"] = "Changing song..."
                 song_display_state["artist"] = ""
-                await play_track_via_backend(album_result['uri'], 0)
+                # Call play_random_track_from_album to get a new track from the album
+                await play_random_track_from_album(album_result['uri'], update_song_display_from_callback)
 
         if (snake_pos[0] < 0 or snake_pos[0] >= width or
             snake_pos[1] < 0 or snake_pos[1] >= height or
@@ -249,6 +254,7 @@ async def start_game(screen):
         for pos in revealed_pieces:
             px, py = pos[0] * ALBUM_GRID_SIZE, pos[1] * ALBUM_GRID_SIZE
             screen.blit(album_pieces[pos], (px, py))
+            print(f"DEBUG: snake_logic.py - Displaying album piece at {pos} -> ({px}, {py})")
 
         for block in snake_body:
             pygame.draw.rect(screen, GREEN, pygame.Rect(block[0], block[1], GRID_SIZE, GRID_SIZE))
