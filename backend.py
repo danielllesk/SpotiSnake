@@ -368,11 +368,29 @@ def search():
         return add_cors_headers(response[0])
     q = request.args.get('q')
     logging.debug(f"DEBUG: backend.py - Searching for: {q}")
-    try:
-        results = sp.search(q, type='album', limit=5)
-        logging.debug(f"DEBUG: backend.py - Found {len(results.get('albums', {}).get('items', []))} albums")
-        response = jsonify(results)
+    logging.debug(f"DEBUG: backend.py - Query type: {type(q)}, length: {len(q) if q else 0}")
+    
+    if not q:
+        logging.debug("DEBUG: backend.py - No query parameter provided")
+        response = jsonify({'error': 'No search query provided'}), 400
         return add_cors_headers(response)
+    
+    try:
+        logging.debug(f"DEBUG: backend.py - Calling Spotify API search with query: '{q}'")
+        results = sp.search(q, type='album', limit=5)
+        albums_found = len(results.get('albums', {}).get('items', []))
+        logging.debug(f"DEBUG: backend.py - Found {albums_found} albums")
+        
+        if albums_found > 0:
+            # Log first album details for debugging
+            first_album = results['albums']['items'][0]
+            logging.debug(f"DEBUG: backend.py - First album: '{first_album.get('name', 'Unknown')}' by '{first_album.get('artists', [{}])[0].get('name', 'Unknown') if first_album.get('artists') else 'Unknown'}'")
+        
+        response = jsonify(results)
+        logging.debug(f"DEBUG: backend.py - Search response created successfully")
+        cors_response = add_cors_headers(response)
+        logging.debug(f"DEBUG: backend.py - CORS headers added, returning response")
+        return cors_response
     except Exception as e:
         logging.error(f"DEBUG: backend.py - Error in search: {e}")
         import traceback
