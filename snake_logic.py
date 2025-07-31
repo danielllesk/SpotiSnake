@@ -231,8 +231,8 @@ async def start_game(screen):
                 print(f"DEBUG: snake_logic.py - Score milestone reached: {score}, changing song")
                 song_display_state["name"] = "Changing song..."
                 song_display_state["artist"] = ""
-                # Call play_random_track_from_album to get a new track from the album
-                await play_random_track_from_album(album_result['uri'], update_song_display_from_callback)
+                # Update display immediately, then play track in background
+                asyncio.create_task(play_random_track_from_album(album_result['uri'], update_song_display_from_callback))
 
         if (snake_pos[0] < 0 or snake_pos[0] >= width or
             snake_pos[1] < 0 or snake_pos[1] >= height or

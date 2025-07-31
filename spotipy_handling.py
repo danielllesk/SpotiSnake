@@ -277,7 +277,7 @@ def get_album_tracks(album_id):
 
 async def download_and_resize_album_cover_async(url, target_width, target_height):
     """Download and resize album cover asynchronously using backend proxy to avoid CORS"""
-    print(f"DEBUG: spotipy_handling.py - download_and_resize_album_cover_async called with url: {url}")
+    print(f"DEBUG: spotipy_handling.py - download_and_resize_album_cover_async called with url: {url}, size: {target_width}x{target_height}")
     
     if not url:
         print("DEBUG: spotipy_handling.py - No URL provided, creating fallback cover")
@@ -285,7 +285,17 @@ async def download_and_resize_album_cover_async(url, target_width, target_height
     
     # For browser environments, create visual album covers instead of trying to load images
     print(f"DEBUG: spotipy_handling.py - Creating visual album cover for browser environment")
-    return create_visual_album_cover(url, target_width, target_height)
+    try:
+        cover = create_visual_album_cover(url, target_width, target_height)
+        if cover:
+            print(f"DEBUG: spotipy_handling.py - Successfully created visual album cover: {cover.get_size()}")
+            return cover
+        else:
+            print(f"DEBUG: spotipy_handling.py - Failed to create visual album cover, using fallback")
+            return create_fallback_album_cover(target_width, target_height)
+    except Exception as e:
+        print(f"DEBUG: spotipy_handling.py - Exception creating visual album cover: {e}")
+        return create_fallback_album_cover(target_width, target_height)
 
 def download_and_resize_album_cover(url, target_width, target_height):
     print(f"DEBUG: spotipy_handling.py - download_and_resize_album_cover called with url: {url}")
@@ -314,15 +324,23 @@ def create_fallback_album_cover(target_width, target_height):
     """Create a fallback album cover when image download fails"""
     try:
         surface = pygame.Surface((target_width, target_height))
-        # Use a gradient-like effect with different colors
+        
+        # Create a more colorful gradient pattern
         for y in range(target_height):
-            color_value = int(50 + (y / target_height) * 100)
-            pygame.draw.line(surface, (color_value, color_value, color_value), (0, y), (target_width, y))
+            for x in range(target_width):
+                # Create a colorful pattern
+                r = (x * 255 // target_width) % 256
+                g = (y * 255 // target_height) % 256
+                b = ((x + y) * 255 // (target_width + target_height)) % 256
+                surface.set_at((x, y), (r, g, b))
+        
+        # Add a border
+        pygame.draw.rect(surface, (0, 0, 0), surface.get_rect(), 2)
         
         # Add some text to indicate it's an album cover
         try:
-            font = pygame.font.SysFont("Arial", min(target_width, target_height) // 8)
-            text = font.render("ALBUM", True, (200, 200, 200))
+            font = pygame.font.SysFont("Arial", min(target_width, target_height) // 6)
+            text = font.render("ALBUM", True, (255, 255, 255))
             text_rect = text.get_rect(center=(target_width // 2, target_height // 2))
             surface.blit(text, text_rect)
             print(f"DEBUG: spotipy_handling.py - Fallback album cover created with text")
@@ -349,24 +367,33 @@ def create_visual_album_cover(image_url, target_width, target_height):
         surface = pygame.Surface((target_width, target_height))
         print(f"DEBUG: spotipy_handling.py - Created surface: {surface.get_size()}")
         
-        # Generate a gradient pattern using the hash
+        # Create a cleaner, more appealing pattern
+        # Use the hash to generate a consistent color palette
+        r_base = int(hash_value[0:2], 16)
+        g_base = int(hash_value[2:4], 16)
+        b_base = int(hash_value[4:6], 16)
+        
+        # Create a gradient pattern
         for y in range(target_height):
             for x in range(target_width):
-                # Use hash to generate consistent colors
-                color_index = (x + y * target_width) % len(hash_value)
-                r = int(hash_value[color_index:color_index+2], 16)
-                g = int(hash_value[(color_index+2)%len(hash_value):(color_index+4)%len(hash_value)], 16)
-                b = int(hash_value[(color_index+4)%len(hash_value):(color_index+6)%len(hash_value)], 16)
+                # Create a smooth gradient based on position
+                x_ratio = x / target_width
+                y_ratio = y / target_height
                 
-                # Add some variation based on position
-                r = (r + x * 2) % 256
-                g = (g + y * 2) % 256
-                b = (b + (x + y) * 3) % 256
+                # Mix the base colors with position-based variation
+                r = int(r_base * (0.5 + 0.5 * x_ratio))
+                g = int(g_base * (0.5 + 0.5 * y_ratio))
+                b = int(b_base * (0.5 + 0.5 * (x_ratio + y_ratio) / 2))
+                
+                # Ensure values are in valid range
+                r = max(0, min(255, r))
+                g = max(0, min(255, g))
+                b = max(0, min(255, b))
                 
                 surface.set_at((x, y), (r, g, b))
         
-        # Add a border
-        pygame.draw.rect(surface, (0, 0, 0), surface.get_rect(), 2)
+        # Add a subtle border
+        pygame.draw.rect(surface, (0, 0, 0), surface.get_rect(), 1)
         
         print(f"DEBUG: spotipy_handling.py - Created visual album cover successfully: {target_width}x{target_height}")
         return surface
@@ -702,6 +729,7 @@ async def get_album_search_input(screen, font):
 
     def draw_search_results_local():
         nonlocal album_covers
+        print(f"DEBUG: spotipy_handling.py - draw_search_results_local called with {len(search_results)} results and {len(album_covers)} covers")
         if search_results:
             y_offset = results_area.y + 10
             for album in search_results:
@@ -711,11 +739,21 @@ async def get_album_search_input(screen, font):
                 else:
                     pygame.draw.rect(screen, WHITE, result_rect)
                 pygame.draw.rect(screen, DARK_BLUE, result_rect, 1)
-                if album['uri'] in album_covers and album_covers[album['uri']]:
-                    screen.blit(album_covers[album['uri']], (result_rect.x + 10, result_rect.y + 10))
-                    text_start_x = result_rect.x + 70
+                
+                # Debug: Check if cover exists
+                if album['uri'] in album_covers:
+                    cover = album_covers[album['uri']]
+                    if cover:
+                        print(f"DEBUG: spotipy_handling.py - Displaying cover for {album['name']} at ({result_rect.x + 10}, {result_rect.y + 10})")
+                        screen.blit(cover, (result_rect.x + 10, result_rect.y + 10))
+                        text_start_x = result_rect.x + 70
+                    else:
+                        print(f"DEBUG: spotipy_handling.py - Cover for {album['name']} is None")
+                        text_start_x = result_rect.x + 10
                 else:
+                    print(f"DEBUG: spotipy_handling.py - No cover found for {album['name']} (URI: {album['uri']})")
                     text_start_x = result_rect.x + 10
+                
                 name_font_local = pygame.font.SysFont('corbel', 18)
                 name_surf = name_font_local.render(album['name'], True, BLACK)
                 screen.blit(name_surf, (text_start_x, result_rect.y + 10))
@@ -789,21 +827,45 @@ async def get_album_search_input(screen, font):
                                 print(f"DEBUG: spotipy_handling.py - Added {len(search_results)} albums to search results")
                                 # Download album covers immediately
                                 print("DEBUG: spotipy_handling.py - Starting album cover downloads")
+                                album_covers.clear()  # Clear any old covers
                                 for album in search_results:
                                     if album['image_url']:
                                         try:
+                                            print(f"DEBUG: spotipy_handling.py - Downloading cover for {album['name']} with URL: {album['image_url']}")
                                             cover = await download_and_resize_album_cover_async(album['image_url'], 50, 50)
                                             if cover:
                                                 album_covers[album['uri']] = cover
-                                                print(f"DEBUG: spotipy_handling.py - Downloaded cover for {album['name']}")
+                                                print(f"DEBUG: spotipy_handling.py - Downloaded cover for {album['name']} and stored in album_covers")
+                                                print(f"DEBUG: spotipy_handling.py - album_covers now has {len(album_covers)} items")
+                                                print(f"DEBUG: spotipy_handling.py - Cover size: {cover.get_size()}")
                                             else:
                                                 print(f"DEBUG: spotipy_handling.py - Failed to download cover for {album['name']} - using fallback")
+                                                # Create a fallback cover and store it
+                                                fallback_cover = create_fallback_album_cover(50, 50)
+                                                if fallback_cover:
+                                                    album_covers[album['uri']] = fallback_cover
+                                                    print(f"DEBUG: spotipy_handling.py - Stored fallback cover for {album['name']}")
                                         except Exception as e:
                                             print(f"DEBUG: spotipy_handling.py - Error downloading cover for {album['name']}: {e}")
+                                            # Create a fallback cover and store it
+                                            fallback_cover = create_fallback_album_cover(50, 50)
+                                            if fallback_cover:
+                                                album_covers[album['uri']] = fallback_cover
+                                                print(f"DEBUG: spotipy_handling.py - Stored fallback cover for {album['name']} after error")
+                                    else:
+                                        print(f"DEBUG: spotipy_handling.py - No image URL for {album['name']}")
+                                        # Create a fallback cover for albums without image URLs
+                                        fallback_cover = create_fallback_album_cover(50, 50)
+                                        if fallback_cover:
+                                            album_covers[album['uri']] = fallback_cover
+                                            print(f"DEBUG: spotipy_handling.py - Stored fallback cover for {album['name']} (no image URL)")
+                                
                                 print("DEBUG: spotipy_handling.py - Album cover downloads completed")
+                                print(f"DEBUG: spotipy_handling.py - Final album_covers count: {len(album_covers)}")
+                                print(f"DEBUG: spotipy_handling.py - album_covers keys: {list(album_covers.keys())}")
                             else:
                                 print(f"DEBUG: spotipy_handling.py - No albums found in search results")
-                            album_covers.clear()
+                                # Don't clear album_covers here - it clears the covers we just downloaded!
                     elif event.key == pygame.K_BACKSPACE:
                         text = text[:-1]
                         if not text:
@@ -864,7 +926,7 @@ async def play_track_via_backend(uri, position_ms=0):
         
         # Wait a bit for the async operation to complete
         import asyncio
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.05)  # Reduced from 0.1 to 0.05 seconds
         
         # Check the result
         if hasattr(js.window, 'play_result'):
