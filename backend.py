@@ -843,6 +843,66 @@ def proxy_image():
         response = jsonify({'error': f'Failed to proxy image: {str(e)}'}), 500
         return add_cors_headers(response[0])
 
+@app.route('/download_album_cover', methods=['POST', 'OPTIONS'])
+def download_album_cover():
+    """Download album cover and return as base64 data"""
+    if request.method == 'OPTIONS':
+        logging.debug("DEBUG: backend.py - OPTIONS request for /download_album_cover endpoint")
+        response = jsonify({'status': 'ok'})
+        response = add_cors_headers(response)
+        # Add additional CORS headers for preflight
+        origin = request.headers.get('Origin')
+        if origin:
+            response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
+        logging.debug(f"DEBUG: backend.py - OPTIONS response headers for /download_album_cover: {dict(response.headers)}")
+        return response
+    
+    logging.debug("DEBUG: backend.py - POST /download_album_cover endpoint called")
+    
+    try:
+        data = request.get_json()
+        image_url = data.get('image_url')
+        
+        if not image_url:
+            logging.debug("DEBUG: backend.py - No image_url provided")
+            response = jsonify({'error': 'No image_url provided'}), 400
+            return add_cors_headers(response[0])
+        
+        logging.debug(f"DEBUG: backend.py - Downloading album cover from: {image_url}")
+        
+        # Download the image
+        import requests
+        import base64
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+        
+        img_response = requests.get(image_url, headers=headers, timeout=10)
+        img_response.raise_for_status()
+        
+        # Convert to base64
+        image_data = base64.b64encode(img_response.content).decode('utf-8')
+        
+        # Return the base64 data
+        response = jsonify({
+            'status': 200,
+            'data': image_data,
+            'content_type': img_response.headers.get('content-type', 'image/jpeg'),
+            'size': len(img_response.content)
+        })
+        response = add_cors_headers(response)
+        
+        logging.debug(f"DEBUG: backend.py - Successfully downloaded album cover, size: {len(img_response.content)} bytes")
+        return response
+        
+    except Exception as e:
+        logging.error(f"DEBUG: backend.py - Error downloading album cover: {e}")
+        response = jsonify({'error': f'Failed to download album cover: {str(e)}'}), 500
+        return add_cors_headers(response[0])
+
 if __name__ == '__main__':
     logging.debug("DEBUG: backend.py - Starting Flask server on port 5000")
     app.run(debug=True, port=5000, host='0.0.0.0') 
