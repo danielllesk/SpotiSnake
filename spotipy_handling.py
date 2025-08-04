@@ -533,7 +533,7 @@ async def download_and_resize_album_cover_async(url, target_width, target_height
                 if base64_data:
                     try:
                         # Use pygbag-specific helper for better browser compatibility
-                        resized_image = base64_to_pygame_surface_pygbag(base64_data, target_width, target_height)
+                        resized_image = await base64_to_pygame_surface_pygbag(base64_data, target_width, target_height)
                         if resized_image:
                             return resized_image
                         else:
@@ -759,6 +759,91 @@ def create_visual_album_cover_from_data(image_data, target_width, target_height)
     except Exception as e:
         print(f"DEBUG: spotipy_handling.py - Error creating visual cover from data: {e}")
         return create_fallback_album_cover(target_width, target_height)
+
+def create_album_cover_like_surface(image_data, target_width, target_height):
+    """Create a surface that looks more like an actual album cover"""
+    try:
+        import hashlib
+        hash_value = hashlib.md5(image_data).hexdigest()
+        
+        # Create a surface
+        surface = pygame.Surface((target_width, target_height))
+        
+        # Extract multiple color palettes from the hash to create more realistic patterns
+        colors = []
+        for i in range(0, len(hash_value), 6):
+            if i + 5 < len(hash_value):
+                r = int(hash_value[i:i+2], 16)
+                g = int(hash_value[i+2:i+4], 16)
+                b = int(hash_value[i+4:i+6], 16)
+                colors.append((r, g, b))
+        
+        # Ensure we have at least 2 colors
+        if len(colors) < 2:
+            colors.extend([(128, 128, 128), (64, 64, 64)])
+        
+        # Create a more sophisticated pattern that looks like an album cover
+        for y in range(target_height):
+            for x in range(target_width):
+                # Create multiple layers of patterns
+                
+                # Layer 1: Base gradient
+                progress_x = x / target_width
+                progress_y = y / target_height
+                
+                # Use the first two colors for the main gradient
+                color1 = colors[0]
+                color2 = colors[1] if len(colors) > 1 else colors[0]
+                
+                # Create a diagonal gradient
+                gradient_progress = (progress_x + progress_y) / 2
+                r = int(color1[0] * (1 - gradient_progress) + color2[0] * gradient_progress)
+                g = int(color1[1] * (1 - gradient_progress) + color2[1] * gradient_progress)
+                b = int(color1[2] * (1 - gradient_progress) + color2[2] * gradient_progress)
+                
+                # Layer 2: Add texture based on image data
+                texture_index = (x * 7 + y * 11) % len(hash_value)
+                texture_char = hash_value[texture_index]
+                texture_value = int(texture_char, 16)
+                
+                # Add subtle texture variation
+                texture_offset = (texture_value - 8) * 3
+                r = max(0, min(255, r + texture_offset))
+                g = max(0, min(255, g + texture_offset))
+                b = max(0, min(255, b + texture_offset))
+                
+                # Layer 3: Add some geometric patterns
+                if len(colors) > 2:
+                    # Create some geometric shapes
+                    center_x, center_y = target_width // 2, target_height // 2
+                    distance = ((x - center_x) ** 2 + (y - center_y) ** 2) ** 0.5
+                    
+                    # Add circular patterns
+                    if distance < target_width // 4:
+                        color3 = colors[2]
+                        blend_factor = 0.3
+                        r = int(r * (1 - blend_factor) + color3[0] * blend_factor)
+                        g = int(g * (1 - blend_factor) + color3[1] * blend_factor)
+                        b = int(b * (1 - blend_factor) + color3[2] * blend_factor)
+                
+                surface.set_at((x, y), (r, g, b))
+        
+        # Add a realistic album cover border
+        pygame.draw.rect(surface, (255, 255, 255), surface.get_rect(), 2)
+        
+        # Add a subtle inner border
+        pygame.draw.rect(surface, (200, 200, 200), surface.get_rect(), 1)
+        
+        # Add a drop shadow effect
+        shadow_surface = pygame.Surface((target_width + 4, target_height + 4), pygame.SRCALPHA)
+        pygame.draw.rect(shadow_surface, (0, 0, 0, 80), (4, 4, target_width, target_height))
+        surface.blit(shadow_surface, (-2, -2))
+        
+        print(f"DEBUG: spotipy_handling.py - Created realistic album cover with {len(colors)} colors")
+        return surface
+    except Exception as e:
+        print(f"DEBUG: spotipy_handling.py - Error creating album-like cover: {e}")
+        return create_visual_album_cover_from_data(image_data, target_width, target_height)
 
 def get_spotify_device():
     global device_id_cache
@@ -1085,7 +1170,7 @@ async def get_album_search_input(screen, font):
                 except Exception as e:
                     print(f"DEBUG: spotipy_handling.py - Failed to download cover for {album['name']}: {e}")
 
-    def draw_search_results_local():
+    async def draw_search_results_local():
         nonlocal album_covers
         if search_results:
             y_offset = results_area.y + 10
@@ -1097,30 +1182,18 @@ async def get_album_search_input(screen, font):
                     pygame.draw.rect(screen, WHITE, result_rect)
                 pygame.draw.rect(screen, DARK_BLUE, result_rect, 1)
                 
-                # Download cover on-demand if needed (like the old working code)
+                # Download cover on-demand if needed
                 if album['image_url'] and album['uri'] not in album_covers:
                     try:
                         print(f"DEBUG: spotipy_handling.py - Downloading cover on-demand for {album['name']}")
-                        # Always create a visual cover immediately for display
-                        visual_cover = create_visual_album_cover(album['image_url'], 50, 50)
-                        album_covers[album['uri']] = visual_cover
-                        print(f"DEBUG: spotipy_handling.py - Created immediate visual cover for {album['name']}")
-                        
-                        # Create a background task to download the real cover
-                        async def download_cover_async():
-                            try:
-                                print(f"DEBUG: spotipy_handling.py - Starting background download for {album['name']}")
-                                real_cover = await download_and_resize_album_cover_async(album['image_url'], 50, 50)
-                                if real_cover:
-                                    album_covers[album['uri']] = real_cover
-                                    print(f"DEBUG: spotipy_handling.py - Updated cover for {album['name']} with real image")
-                                else:
-                                    print(f"DEBUG: spotipy_handling.py - Background download failed for {album['name']} - keeping visual cover")
-                            except Exception as e:
-                                print(f"DEBUG: spotipy_handling.py - Error in background download for {album['name']}: {e}")
-                        
-                        # Start the background download
-                        asyncio.create_task(download_cover_async())
+                        # Download the real cover directly instead of creating visual cover first
+                        real_cover = await download_and_resize_album_cover_async(album['image_url'], 50, 50)
+                        if real_cover:
+                            album_covers[album['uri']] = real_cover
+                            print(f"DEBUG: spotipy_handling.py - Downloaded real cover for {album['name']}")
+                        else:
+                            print(f"DEBUG: spotipy_handling.py - Failed to download real cover for {album['name']}, using fallback")
+                            album_covers[album['uri']] = create_fallback_album_cover(50, 50)
                     except Exception as e:
                         print(f"DEBUG: spotipy_handling.py - Exception in on-demand download: {e}")
                         album_covers[album['uri']] = create_fallback_album_cover(50, 50)
@@ -1248,7 +1321,7 @@ async def get_album_search_input(screen, font):
         txt_surface = font.render(text, True, BLACK)
         screen.blit(txt_surface, (input_box.x + 5, input_box.y + 5))
         pygame.draw.rect(screen, color, input_box, 2)
-        draw_search_results_local()
+        await draw_search_results_local()
         pygame.draw.rect(screen, LIGHT_BLUE, quit_button_rect_local)
         quit_text_surf = quit_button_font.render("BACK TO MENU", True, BLACK)
         quit_text_rect = quit_text_surf.get_rect(center=quit_button_rect_local.center)
@@ -1772,7 +1845,7 @@ def base64_to_pygame_surface(base64_data, target_width, target_height):
         print(f"DEBUG: spotipy_handling.py - Error converting base64 to surface: {e}")
         return None
 
-def base64_to_pygame_surface_pygbag(base64_data, target_width, target_height):
+async def base64_to_pygame_surface_pygbag(base64_data, target_width, target_height):
     """Convert base64 data to pygame surface specifically for pygbag/browser environment"""
     try:
         import base64
@@ -1780,10 +1853,82 @@ def base64_to_pygame_surface_pygbag(base64_data, target_width, target_height):
         # Decode base64 data
         image_data = base64.b64decode(base64_data)
         
-        # In browser environment, always use visual covers since pygame.image.load() doesn't work
-        print(f"DEBUG: spotipy_handling.py - Browser environment detected, using visual cover from data")
-        return create_visual_album_cover_from_data(image_data, target_width, target_height)
+        # Since pygame.image.load() doesn't work in browser, we'll create a surface
+        # and manually set pixels based on the image data
+        surface = pygame.Surface((target_width, target_height))
+        
+        # Use JavaScript to get pixel data from the image
+        js_code = f'''
+        try {{
+            // Create a canvas element
+            const canvas = document.createElement('canvas');
+            canvas.width = {target_width};
+            canvas.height = {target_height};
+            const ctx = canvas.getContext('2d');
+            
+            // Create an image element
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            
+            img.onload = function() {{
+                // Draw the image on the canvas, scaled to fit
+                ctx.drawImage(img, 0, 0, {target_width}, {target_height});
+                
+                // Get the pixel data
+                const imageData = ctx.getImageData(0, 0, {target_width}, {target_height});
+                window.album_cover_pixels = imageData.data;
+                window.album_cover_loaded = true;
+                console.log("Album cover pixels extracted successfully");
+            }};
+            
+            img.onerror = function() {{
+                console.log("Failed to load album cover image");
+                window.album_cover_loaded = false;
+            }};
+            
+            // Set the base64 data as src
+            img.src = "data:image/jpeg;base64,{base64_data}";
+            
+        }} catch(e) {{
+            console.log("Error creating canvas:", e);
+            window.album_cover_loaded = false;
+        }}
+        '''
+        
+        import js
+        js.eval(js_code)
+        
+        # Wait for the image to load and be drawn to canvas
+        import asyncio
+        await asyncio.sleep(0.3)
+        
+        # Check if the image was loaded successfully
+        if hasattr(js.window, 'album_cover_loaded') and js.window.album_cover_loaded:
+            print(f"DEBUG: spotipy_handling.py - Real album cover loaded and drawn to canvas")
+            
+            # Get the pixel data from JavaScript
+            if hasattr(js.window, 'album_cover_pixels'):
+                pixels = js.window.album_cover_pixels
+                
+                # Convert JavaScript array to Python and set pixels
+                for y in range(target_height):
+                    for x in range(target_width):
+                        idx = (y * target_width + x) * 4  # RGBA format
+                        r = int(pixels[idx])
+                        g = int(pixels[idx + 1])
+                        b = int(pixels[idx + 2])
+                        a = int(pixels[idx + 3])
+                        surface.set_at((x, y), (r, g, b, a))
+                
+                print(f"DEBUG: spotipy_handling.py - Real album cover surface created: {surface.get_size()}")
+                return surface
+            else:
+                print(f"DEBUG: spotipy_handling.py - No pixel data found, using visual representation")
+                return create_visual_album_cover_from_data(image_data, target_width, target_height)
+        else:
+            print(f"DEBUG: spotipy_handling.py - Failed to load real album cover, using visual representation")
+            return create_visual_album_cover_from_data(image_data, target_width, target_height)
             
     except Exception as e:
         print(f"DEBUG: spotipy_handling.py - Error creating pygame surface from base64: {e}")
-        return None
+        return create_visual_album_cover_from_data(image_data, target_width, target_height)
