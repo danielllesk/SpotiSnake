@@ -254,7 +254,6 @@ async def start_game(screen):
         for pos in revealed_pieces:
             px, py = pos[0] * ALBUM_GRID_SIZE, pos[1] * ALBUM_GRID_SIZE
             screen.blit(album_pieces[pos], (px, py))
-            print(f"DEBUG: snake_logic.py - Displaying album piece at {pos} -> ({px}, {py})")
 
         for block in snake_body:
             pygame.draw.rect(screen, GREEN, pygame.Rect(block[0], block[1], GRID_SIZE, GRID_SIZE))
