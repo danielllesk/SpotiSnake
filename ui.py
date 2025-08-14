@@ -140,6 +140,12 @@ async def login_screen():
                         backend_login()
                         print("DEBUG: ui.py - Backend login initiated")
                         
+                        # Open the login URL in browser for user to complete
+                        print("DEBUG: ui.py - Opening login URL in browser")
+                        import js
+                        login_url = f"https://spotisnake.onrender.com/login"
+                        js.window.open(login_url, "_blank")
+                        
                         # Give user time to complete login in browser
                         print("DEBUG: ui.py - Waiting for user to complete login...")
                         await asyncio.sleep(3)  # Wait 3 seconds for user to complete login

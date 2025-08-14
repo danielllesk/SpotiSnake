@@ -377,7 +377,7 @@ def search():
     
     try:
         logging.debug(f"DEBUG: backend.py - Calling Spotify API search with query: '{q}'")
-        results = sp.search(q, type='album', limit=5)
+        results = sp.search(q, type='album', limit=10)  # Increased from 5 to 10 for better selection
         albums_found = len(results.get('albums', {}).get('items', []))
         logging.debug(f"DEBUG: backend.py - Found {albums_found} albums")
         
@@ -388,6 +388,11 @@ def search():
         
         response = jsonify(results)
         logging.debug(f"DEBUG: backend.py - Search response created successfully")
+        
+        # Add performance optimization headers
+        response.headers['Cache-Control'] = 'public, max-age=300'  # Cache for 5 minutes
+        response.headers['X-Search-Results-Count'] = str(albums_found)
+        
         cors_response = add_cors_headers(response)
         logging.debug(f"DEBUG: backend.py - CORS headers added, returning response")
         return cors_response

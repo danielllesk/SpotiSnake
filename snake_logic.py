@@ -94,6 +94,11 @@ async def start_game(screen):
         await main_menu()
         return
     
+    if album_result == "LOGIN_REQUESTED":
+        print("DEBUG: snake_logic.py - User requested login (album_result == LOGIN_REQUESTED)")
+        await start_menu()
+        return
+    
     if not album_result:
         print("DEBUG: snake_logic.py - No album result (album_result is None or False)")
         # Instead of quitting, loop back to album search
