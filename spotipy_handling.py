@@ -1022,7 +1022,19 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
         cached_data_json = getattr(js.window, cache_key)
         cached_data = None
         try:
-            cached_data = json.loads(cached_data_json)
+            # Check if the cached data is actually a string
+            if cached_data_json is None:
+                print(f"DEBUG: spotipy_handling.py - Cached data is None, clearing invalid cache")
+                if hasattr(js.window, cache_key):
+                    delattr(js.window, cache_key)
+                cached_data = None
+            elif isinstance(cached_data_json, str):
+                cached_data = json.loads(cached_data_json)
+            else:
+                print(f"DEBUG: spotipy_handling.py - Cached data is not a string: {type(cached_data_json)}")
+                if hasattr(js.window, cache_key):
+                    delattr(js.window, cache_key)
+                cached_data = None
         except (json.JSONDecodeError, TypeError) as e:
             print(f"DEBUG: spotipy_handling.py - Failed to parse cached data: {e}")
             # Clear invalid cache
@@ -1043,8 +1055,12 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
                     # Play the track
                     track_uri = track.get('uri', '')
                     if track_uri:
-                        print(f"DEBUG: spotipy_handling.py - Playing cached track: {track_name} by {artist_name}")
-                        await play_track_via_backend(track_uri, 0)
+                        # Calculate random position from start to 30 seconds before end
+                        duration_ms = track.get('duration_ms', 0)
+                        max_position = max(0, duration_ms - 30000)  # 30 seconds before end
+                        position_ms = random.randint(0, max_position)
+                        print(f"DEBUG: spotipy_handling.py - Playing cached track: {track_name} by {artist_name} at {position_ms}ms")
+                        await play_track_via_backend(track_uri, position_ms)
                         song_info_updater_callback(track_name, artist_name, False)
                         return
                     else:
@@ -1078,42 +1094,8 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
     except Exception as e:
         print(f"DEBUG: spotipy_handling.py - Authentication check failed: {e}")
     
-    # Add a small delay to avoid rate limiting issues
-    await asyncio.sleep(0.5)
-    print(f"DEBUG: spotipy_handling.py - Added delay to avoid rate limiting")
-    
-    # Test a simple API call first to verify session is working
-    print(f"DEBUG: spotipy_handling.py - Testing session with simple API call...")
-    test_js_code = f'''
-    window.session_test_result = null;
-    fetch("{BACKEND_URL}/me", {{
-        method: "GET",
-        credentials: "include",
-        headers: {{
-            "Accept": "application/json"
-        }}
-    }})
-    .then(response => response.text())
-    .then(text => {{
-        console.log("JS: Session test response:", text.substring(0, 100));
-        window.session_test_result = {{ status: 200, text: text }};
-    }})
-    .catch(error => {{
-        console.log("JS: Session test error:", error);
-        window.session_test_result = {{ status: 500, error: error.toString() }};
-    }});
-    '''
-    
-    try:
-        js.eval(test_js_code)
-        await asyncio.sleep(0.3)
-        if hasattr(js.window, 'session_test_result'):
-            test_result = js.window.session_test_result
-            print(f"DEBUG: spotipy_handling.py - Session test result: {test_result}")
-        else:
-            print(f"DEBUG: spotipy_handling.py - No session test result available")
-    except Exception as e:
-        print(f"DEBUG: spotipy_handling.py - Session test failed: {e}")
+    # Skip the session test and delays - go straight to album tracks
+    print(f"DEBUG: spotipy_handling.py - Skipping session test and delays for faster loading")
     
     # Use async approach with js.eval for getting album tracks
     
@@ -1194,6 +1176,11 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
                         if error_text and error_text.strip().startswith('{'):
                             error_data = json.loads(error_text)
                             print(f"DEBUG: spotipy_handling.py - Parsed error data: {error_data}")
+                            # Check if it's a Spotify API error
+                            if 'msg' in error_data:
+                                print(f"DEBUG: spotipy_handling.py - Spotify API error message: {error_data['msg']}")
+                            if 'status' in error_data:
+                                print(f"DEBUG: spotipy_handling.py - Spotify API status: {error_data['status']}")
                         else:
                             print(f"DEBUG: spotipy_handling.py - Error text is not JSON: '{error_text[:200]}...'")
                     except Exception as parse_error:
@@ -1235,42 +1222,12 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
         if not tracks:
             print("DEBUG: spotipy_handling.py - No tracks found on first attempt, retrying with exponential backoff...")
             # Try multiple retries with increasing delays
-            for retry_attempt in range(5):  # Increased from 3 to 5 retries
-                delay = (retry_attempt + 1) * 0.5  # Reduced delays: 0.5s, 1s, 1.5s, 2s, 2.5s
+            for retry_attempt in range(2):  # Reduced to just 2 retries
+                delay = (retry_attempt + 1) * 0.1  # Very short delays: 0.1s, 0.2s
                 print(f"DEBUG: spotipy_handling.py - Retry attempt {retry_attempt + 1} in {delay} seconds...")
                 await asyncio.sleep(delay)
             
-            # First test a simpler endpoint to see if backend is working
-            print("DEBUG: spotipy_handling.py - Testing backend connectivity before retry...")
-            test_js_code = f'''
-            fetch("{BACKEND_URL}/me", {{
-                method: "GET",
-                credentials: "include"
-            }})
-            .then(response => {{
-                console.log("JS: /me test response status:", response.status);
-                return response.text();
-            }})
-            .then(text => {{
-                console.log("JS: /me test response:", text.substring(0, 100));
-                window.backend_test_result = {{ status: 200, text: text }};
-            }})
-            .catch(error => {{
-                console.log("JS: /me test error:", error);
-                window.backend_test_result = {{ status: 500, error: error.toString() }};
-            }});
-            '''
-            
-            try:
-                js.eval(test_js_code)
-                await asyncio.sleep(0.3)
-                if hasattr(js.window, 'backend_test_result'):
-                    test_result = js.window.backend_test_result
-                    print(f"DEBUG: spotipy_handling.py - Backend connectivity test result: {test_result}")
-            except Exception as e:
-                print(f"DEBUG: spotipy_handling.py - Backend connectivity test failed: {e}")
-            
-            # Retry the request
+            # Retry the request (skip connectivity test for speed)
             print("DEBUG: spotipy_handling.py - Retrying album tracks request...")
             try:
                 # Clear the result before retry to ensure fresh data
@@ -1318,23 +1275,31 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
                 if hasattr(js.window, cache_key):
                     try:
                         cached_data_json = getattr(js.window, cache_key)
-                        cached_data = json.loads(cached_data_json)
-                        if isinstance(cached_data, dict) and 'tracks' in cached_data:
-                            tracks = cached_data['tracks']
-                            print(f"DEBUG: spotipy_handling.py - Using cached tracks as fallback: {len(tracks)} tracks")
-                            if tracks:
-                                # Select a random track from cached tracks
-                                track = random.choice(tracks)
-                                track_name = track.get('name', 'Unknown Track')
-                                artist_name = track.get('artists', [{}])[0].get('name', 'Unknown Artist') if track.get('artists') else 'Unknown Artist'
-                                
-                                # Play the track
-                                track_uri = track.get('uri', '')
-                                if track_uri:
-                                    print(f"DEBUG: spotipy_handling.py - Playing cached fallback track: {track_name} by {artist_name}")
-                                    await play_track_via_backend(track_uri, 0)
-                                    song_info_updater_callback(track_name, artist_name, False)
-                                    return
+                        if cached_data_json is None:
+                            print(f"DEBUG: spotipy_handling.py - Fallback cache is None, skipping")
+                            pass
+                        elif isinstance(cached_data_json, str):
+                            cached_data = json.loads(cached_data_json)
+                            if isinstance(cached_data, dict) and 'tracks' in cached_data:
+                                tracks = cached_data['tracks']
+                                print(f"DEBUG: spotipy_handling.py - Using cached tracks as fallback: {len(tracks)} tracks")
+                                if tracks:
+                                    # Select a random track from cached tracks
+                                    track = random.choice(tracks)
+                                    track_name = track.get('name', 'Unknown Track')
+                                    artist_name = track.get('artists', [{}])[0].get('name', 'Unknown Artist') if track.get('artists') else 'Unknown Artist'
+                                    
+                                                                        # Play the track
+                                    track_uri = track.get('uri', '')
+                                    if track_uri:
+                                        # Calculate random position from start to 30 seconds before end
+                                        duration_ms = track.get('duration_ms', 0)
+                                        max_position = max(0, duration_ms - 30000)  # 30 seconds before end
+                                        position_ms = random.randint(0, max_position)
+                                        print(f"DEBUG: spotipy_handling.py - Playing cached fallback track: {track_name} by {artist_name} at {position_ms}ms")
+                                        await play_track_via_backend(track_uri, position_ms)
+                                        song_info_updater_callback(track_name, artist_name, False)
+                                        return
                     except Exception as e:
                         print(f"DEBUG: spotipy_handling.py - Failed to use cached tracks as fallback: {e}")
                 
