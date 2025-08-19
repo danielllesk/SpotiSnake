@@ -196,6 +196,11 @@ async def start_game(screen):
     last_pulse_time = time.monotonic()
     pulse_interval = 0.5
     pulse_on = False
+    
+    # Speed progression variables
+    current_speed = SNAKE_SPEED  # Start with base speed
+    speed_increment = 1.5  # Increase speed by 1.5 each song change
+    max_speed = 25  # Maximum speed cap
 
     print("DEBUG: snake_logic.py - Starting main game loop")
     while running:
@@ -256,6 +261,11 @@ async def start_game(screen):
             
             if score > 0 and score % 50 == 0:
                 print(f"DEBUG: snake_logic.py - Score milestone reached: {score}, changing song")
+                
+                # Increase speed for progressive difficulty
+                current_speed = min(current_speed + speed_increment, max_speed)
+                print(f"DEBUG: snake_logic.py - Speed increased to {current_speed:.1f}")
+                
                 song_display_state["name"] = "Changing song..."
                 song_display_state["artist"] = ""
                 # Update display immediately, then play track in background
@@ -297,8 +307,9 @@ async def start_game(screen):
 
         show_score(screen, score)
         show_song(screen, song_display_state["name"], song_display_state["artist"])
+        show_speed(screen, current_speed)
         pygame.display.update()
-        await asyncio.sleep(1/SNAKE_SPEED)
+        await asyncio.sleep(1/current_speed)
 
 def show_score(screen, score):
     """Displays the current game score on the screen with an outline."""
@@ -319,6 +330,14 @@ def show_song(screen, track_name, track_artist):
     song_surface = render_text_with_outline(display_text, font, WHITE, OUTLINE_COLOR, OUTLINE_THICKNESS)
     song_display_y = 35
     screen.blit(song_surface, (10, song_display_y))
+
+def show_speed(screen, current_speed):
+    """Displays the current game speed on the screen."""
+    speed_text = f"Speed: {current_speed:.1f}"
+    font = pygame.font.SysFont('Press Start 2P', 14)
+    speed_surface = render_text_with_outline(speed_text, font, WHITE, OUTLINE_COLOR, OUTLINE_THICKNESS)
+    speed_display_y = 60
+    screen.blit(speed_surface, (10, speed_display_y))
 
 async def winning_screen(screen, score, album_pieces):
     """Displays the winning screen, plays a victory song, and shows New Game button."""
