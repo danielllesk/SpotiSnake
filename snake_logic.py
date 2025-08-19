@@ -91,6 +91,13 @@ async def start_game(screen):
     
     if album_result == "BACK_TO_MENU":
         print("DEBUG: snake_logic.py - User chose back to menu (album_result == BACK_TO_MENU)")
+        # Play start menu music when returning to menu
+        print("DEBUG: snake_logic.py - Playing start menu music on return")
+        try:
+            await play_track_via_backend(START_MENU_URI, 0)
+            print("DEBUG: snake_logic.py - Start menu music started on return")
+        except Exception as e:
+            print(f"DEBUG: snake_logic.py - Failed to start menu music on return: {e}")
         await main_menu()
         return
     
@@ -106,7 +113,12 @@ async def start_game(screen):
         await start_game(screen)
         return
 
-    album_cover_surface = await download_and_resize_album_cover_async(album_result['image_url'], width, height)
+    # Handle the case where image_url might be None or missing
+    image_url = album_result.get('image_url')
+    if image_url is None and 'images' in album_result and album_result['images']:
+        image_url = album_result['images'][0].get('url')
+    
+    album_cover_surface = await download_and_resize_album_cover_async(image_url, width, height)
     if album_cover_surface is None:
         print("DEBUG: snake_logic.py - Failed to load album cover")
         # Instead of quitting, loop back to album search
@@ -130,6 +142,16 @@ async def start_game(screen):
     song_display_state["name"] = "Loading first game song..."
     song_display_state["artist"] = ""
     print("DEBUG: snake_logic.py - Starting first track")
+    
+    # Clear any existing playback before starting new album
+    print("DEBUG: snake_logic.py - Clearing existing playback before new album")
+    try:
+        from spotipy_handling import safe_pause_playback
+        await safe_pause_playback()
+        await asyncio.sleep(0.5)  # Give Spotify time to stop
+        print("DEBUG: snake_logic.py - Existing playback cleared")
+    except Exception as e:
+        print(f"DEBUG: snake_logic.py - Error clearing playback: {e}")
     
     # Get album tracks and play a random one
     from spotipy_handling import play_random_track_from_album

@@ -128,7 +128,7 @@ async def login_screen():
                 if login_button.collidepoint(event.pos) and not is_authenticating:
                     print("DEBUG: ui.py - Login button clicked")
                     is_authenticating = True
-                    current_login_text = "Logging in..."
+                    current_login_text = "Opening login..."
                     # Draw UI update for logging in
                     pygame.draw.rect(screen, DARK_BLUE, login_button)
                     text_surf_auth = font.render(current_login_text, True, BLACK)
@@ -140,21 +140,47 @@ async def login_screen():
                         backend_login()
                         print("DEBUG: ui.py - Backend login initiated")
                         
-                        # Open the login URL in browser for user to complete
-                        print("DEBUG: ui.py - Opening login URL in browser")
-                        import js
-                        login_url = f"https://spotisnake.onrender.com/login"
-                        js.window.open(login_url, "_blank")
-                        
-                        # Give user time to complete login in browser
-                        print("DEBUG: ui.py - Waiting for user to complete login...")
-                        await asyncio.sleep(3)  # Wait 3 seconds for user to complete login
-                        
-                        # For now, assume authentication is successful after login
-                        # The actual authentication will be checked when needed
-                        print("DEBUG: ui.py - Assuming authentication successful after login")
-                        print("DEBUG: ui.py - Returning True from login_screen")
-                        return True
+                        # Now wait until backend session is actually authenticated
+                        print("DEBUG: ui.py - Waiting for backend authentication (/me)")
+                        wait_title = small_font.render("Complete login in the opened tab...", True, WHITE)
+                        waiting = True
+                        last_check = 0
+                        start_time = time.time()
+                        max_wait_time = 60  # 60 seconds timeout
+                        while waiting:
+                            # Check for timeout
+                            if time.time() - start_time > max_wait_time:
+                                print("DEBUG: ui.py - Authentication timeout after 60 seconds")
+                                error_message = "Login timeout. Please try again."
+                                error_timer = time.time()
+                                return False
+                            # Process quit events while waiting
+                            for ev in pygame.event.get():
+                                if ev.type == pygame.QUIT:
+                                    await quit_game_async()
+                                    return False
+                            # Redraw background and hints
+                            if game_bg:
+                                screen.blit(game_bg, (0, 0))
+                            else:
+                                screen.fill(DARK_GREY)
+                            screen.blit(wait_title, (width//2 - wait_title.get_width()//2, height//2 - 10))
+                            hint = small_font.render("Return here after confirming login", True, WHITE)
+                            screen.blit(hint, (width//2 - hint.get_width()//2, height//2 + 20))
+                            pygame.display.flip()
+                            # Throttle checks
+                            now = time.time()
+                            if now - last_check > 0.5:
+                                last_check = now
+                                try:
+                                    authed = await check_authenticated()
+                                    print(f"DEBUG: ui.py - Auth check result: {authed}")
+                                    if authed:
+                                        print("DEBUG: ui.py - Authentication confirmed by backend")
+                                        return True
+                                except Exception as ce:
+                                    print(f"DEBUG: ui.py - Auth check error: {ce}")
+                            await asyncio.sleep(0.1)
                     except Exception as e:
                         print(f"DEBUG: ui.py - Login error: {e}")
                         error_message = f"Login error: {str(e)}"
@@ -195,13 +221,17 @@ async def main_menu():
     print("DEBUG: ui.py - main_menu called (no auth check)")
     clock = pygame.time.Clock()
     
-    # Play background music for the main menu
-    print("DEBUG: ui.py - Playing background music")
+
+    
+    # Show message about music in browser
+    browser_mode = False
     try:
-        await play_track_via_backend(START_MENU_URI, 0)
-        print("DEBUG: ui.py - Background music started")
+        from spotipy_handling import is_pyodide
+        browser_mode = is_pyodide()
+        if browser_mode:
+            print("DEBUG: ui.py - Browser environment detected, music will be manual")
     except Exception as e:
-        print(f"DEBUG: ui.py - Failed to start background music: {e}")
+        print(f"DEBUG: ui.py - Could not check environment: {e}")
     
     running = True
     button_play_text = "PLAY GAME"
@@ -283,6 +313,15 @@ async def start_menu():
         print("DEBUG: ui.py - Already authenticated, proceeding to main menu")
     
     print("DEBUG: ui.py - Proceeding to main menu")
+    
+    # Play background music only after successful login
+    print("DEBUG: ui.py - Playing background music after login")
+    try:
+        await play_track_via_backend(START_MENU_URI, 0)
+        print("DEBUG: ui.py - Background music started after login")
+    except Exception as e:
+        print(f"DEBUG: ui.py - Failed to start background music: {e}")
+    
     await main_menu()
 
 async def main():

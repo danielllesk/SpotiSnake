@@ -81,55 +81,9 @@ LOCAL_TESTING_MODE = False  # Set to False for production
 
 device_id_cache = None  # Cache for Spotify device ID
 
-# Search performance optimizations
-search_cache = {}  # Cache for search results
-search_cache_ttl = 300  # Cache TTL in seconds (5 minutes)
-last_search_time = 0  # Debounce search requests
-search_debounce_delay = 0.5  # Debounce delay in seconds
-
 def clear_device_id_cache():
     global device_id_cache
     device_id_cache = None
-
-def clear_authentication_state():
-    """Clear all authentication-related state"""
-    global device_id_cache, search_cache
-    device_id_cache = None
-    search_cache.clear()
-    print("DEBUG: spotipy_handling.py - Authentication state cleared")
-
-def clear_search_cache():
-    """Clear the search cache"""
-    global search_cache
-    search_cache = {}
-
-def get_cached_search(query):
-    """Get cached search results if available and not expired"""
-    global search_cache, search_cache_ttl
-    if query in search_cache:
-        timestamp, results = search_cache[query]
-        if time.time() - timestamp < search_cache_ttl:
-            print(f"DEBUG: spotipy_handling.py - Returning cached search results for: {query}")
-            return results
-        else:
-            # Remove expired cache entry
-            del search_cache[query]
-    return None
-
-def cache_search_results(query, results):
-    """Cache search results with timestamp"""
-    global search_cache
-    search_cache[query] = (time.time(), results)
-    print(f"DEBUG: spotipy_handling.py - Cached search results for: {query}")
-
-def should_debounce_search():
-    """Check if we should debounce the search request"""
-    global last_search_time, search_debounce_delay
-    current_time = time.time()
-    if current_time - last_search_time < search_debounce_delay:
-        return True
-    last_search_time = current_time
-    return False
 
 def backend_login():
     """Handles Spotify login through the backend server."""
@@ -141,16 +95,31 @@ def backend_login():
         return
     
     is_logging_in = True
-    
-    # Clear any existing authentication state
-    clear_authentication_state()
-    
     login_url = f"{BACKEND_URL}/login"
-    print(f"DEBUG: spotipy_handling.py - Login URL prepared: {login_url}")
-    
-    # Don't automatically open browser - let the UI handle it
-    print("DEBUG: spotipy_handling.py - Login URL ready for UI to handle")
-    is_logging_in = False
+    print(f"DEBUG: spotipy_handling.py - Opening login URL: {login_url}")
+
+    # Check if we're in a browser environment
+    if is_pyodide():
+        try:
+            import js  # Only available in Pyodide/Pygbag
+            if hasattr(js, 'window'):
+                js.window.open(login_url, "_blank")
+                print("DEBUG: spotipy_handling.py - Opened login URL in browser (js.window.open)")
+            else:
+                print("DEBUG: spotipy_handling.py - js module available but no window attribute")
+                is_logging_in = False
+        except Exception as e:
+            print(f"DEBUG: spotipy_handling.py - Error in browser login: {e}")
+            is_logging_in = False
+    else:
+        # Fallback for desktop Python
+        try:
+            import webbrowser
+            webbrowser.open(login_url)
+            print("DEBUG: spotipy_handling.py - Opened login URL in desktop browser (webbrowser.open)")
+        except Exception as e:
+            print(f"DEBUG: spotipy_handling.py - Error opening browser: {e}")
+            is_logging_in = False
 
 def is_pyodide():
     """Check if we're running in a browser environment (pygbag/pyodide)"""
@@ -229,27 +198,25 @@ async def check_authenticated():
     import js
     import json
     
-    # Test authentication by making a real API call to search endpoint
-    # This will actually verify the token works, not just that it exists
     js_code = f'''
-    console.log("JS: Starting auth check with real API test");
-    fetch("{BACKEND_URL}/search?q=test", {{
+    console.log("JS: Starting fetch for auth check");
+    fetch("{BACKEND_URL}/me", {{
         method: "GET",
         credentials: "include"
     }})
     .then(response => {{
-        console.log("JS: Auth test search status:", response.status);
-        console.log("JS: Auth test search ok:", response.ok);
+        console.log("JS: /me status:", response.status);
+        console.log("JS: /me ok:", response.ok);
         return response.text().then(text => {{
             return {{ status: response.status, text: text }};
         }});
     }})
     .then(result => {{
-        console.log("JS: Auth test search response:", result.text.substring(0, 100));
+        console.log("JS: /me response text:", result.text);
         window.auth_check_result = result;
     }})
     .catch(error => {{
-        console.log("JS: Auth test search error:", error);
+        console.log("JS: Auth check error:", error);
         window.auth_check_result = {{ status: 500, error: error.toString() }};
     }});
     '''
@@ -271,14 +238,6 @@ async def check_authenticated():
                     if status == 200:
                         print("DEBUG: spotipy_handling.py - User authenticated (status 200)")
                         return True
-                    elif status == 401:
-                        print("DEBUG: spotipy_handling.py - User not authenticated (status 401)")
-                        return False
-                    elif status == 500:
-                        print("DEBUG: spotipy_handling.py - Server error during auth check (status 500)")
-                        # This might indicate an expired token, force re-authentication
-                        await force_reauthentication()
-                        return False
                     else:
                         print(f"DEBUG: spotipy_handling.py - Auth check failed with status: {status}")
                         return False
@@ -288,14 +247,6 @@ async def check_authenticated():
                     if status == 200:
                         print("DEBUG: spotipy_handling.py - User authenticated (dict result)")
                         return True
-                    elif status == 401:
-                        print("DEBUG: spotipy_handling.py - User not authenticated (dict result)")
-                        return False
-                    elif status == 500:
-                        print("DEBUG: spotipy_handling.py - Server error during auth check (status 500)")
-                        # This might indicate an expired token, force re-authentication
-                        await force_reauthentication()
-                        return False
                     else:
                         print(f"DEBUG: spotipy_handling.py - Auth check failed with status: {status}")
                         return False
@@ -308,14 +259,6 @@ async def check_authenticated():
                         if status == 200:
                             print("DEBUG: spotipy_handling.py - User authenticated (getattr result)")
                             return True
-                        elif status == 401:
-                            print("DEBUG: spotipy_handling.py - User not authenticated (getattr result)")
-                            return False
-                        elif status == 500:
-                            print("DEBUG: spotipy_handling.py - Server error during auth check (status 500)")
-                            # This might indicate an expired token, force re-authentication
-                            await force_reauthentication()
-                            return False
                         else:
                             print(f"DEBUG: spotipy_handling.py - Auth check failed with status: {status}")
                             return False
@@ -1063,6 +1006,61 @@ def play_uri_with_details(track_uri, position_ms=0):
 async def play_random_track_from_album(album_id, song_info_updater_callback):
     print(f"DEBUG: spotipy_handling.py - play_random_track_from_album called with album_id: {album_id}")
     
+    # Import required modules first
+    import js
+    import json
+    import random
+    import time
+    import asyncio
+    
+    # Simple caching to avoid repeated API calls for the same album
+    cache_key = f"album_tracks_{album_id}"
+    current_time = time.time()
+    
+    # Check if we have cached tracks for this album (cache for 30 seconds)
+    if hasattr(js.window, cache_key):
+        cached_data_json = getattr(js.window, cache_key)
+        cached_data = None
+        try:
+            cached_data = json.loads(cached_data_json)
+        except (json.JSONDecodeError, TypeError) as e:
+            print(f"DEBUG: spotipy_handling.py - Failed to parse cached data: {e}")
+            # Clear invalid cache
+            if hasattr(js.window, cache_key):
+                delattr(js.window, cache_key)
+            cached_data = None
+        
+        if cached_data and isinstance(cached_data, dict) and 'tracks' in cached_data and 'timestamp' in cached_data:
+            if current_time - cached_data['timestamp'] < 30:  # 30 second cache
+                print(f"DEBUG: spotipy_handling.py - Using cached tracks for album {album_id}")
+                tracks = cached_data['tracks']
+                if tracks:
+                    # Select a random track from cached tracks
+                    track = random.choice(tracks)
+                    track_name = track.get('name', 'Unknown Track')
+                    artist_name = track.get('artists', [{}])[0].get('name', 'Unknown Artist') if track.get('artists') else 'Unknown Artist'
+                    
+                    # Play the track
+                    track_uri = track.get('uri', '')
+                    if track_uri:
+                        print(f"DEBUG: spotipy_handling.py - Playing cached track: {track_name} by {artist_name}")
+                        await play_track_via_backend(track_uri, 0)
+                        song_info_updater_callback(track_name, artist_name, False)
+                        return
+                    else:
+                        print(f"DEBUG: spotipy_handling.py - Cached track has no URI")
+                else:
+                    print(f"DEBUG: spotipy_handling.py - Cached tracks list is empty")
+            else:
+                print(f"DEBUG: spotipy_handling.py - Cache expired for album {album_id}")
+        else:
+            print(f"DEBUG: spotipy_handling.py - Invalid cache data for album {album_id}")
+    
+    # Clear any cached album tracks to ensure fresh data
+    if hasattr(js.window, 'album_tracks_sync_result'):
+        delattr(js.window, 'album_tracks_sync_result')
+        print("DEBUG: spotipy_handling.py - Cleared cached album tracks")
+    
     # Extract album ID from URI if needed
     if album_id.startswith('spotify:album:'):
         album_id = album_id.replace('spotify:album:', '')
@@ -1080,18 +1078,64 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
     except Exception as e:
         print(f"DEBUG: spotipy_handling.py - Authentication check failed: {e}")
     
+    # Add a small delay to avoid rate limiting issues
+    await asyncio.sleep(0.5)
+    print(f"DEBUG: spotipy_handling.py - Added delay to avoid rate limiting")
+    
+    # Test a simple API call first to verify session is working
+    print(f"DEBUG: spotipy_handling.py - Testing session with simple API call...")
+    test_js_code = f'''
+    window.session_test_result = null;
+    fetch("{BACKEND_URL}/me", {{
+        method: "GET",
+        credentials: "include",
+        headers: {{
+            "Accept": "application/json"
+        }}
+    }})
+    .then(response => response.text())
+    .then(text => {{
+        console.log("JS: Session test response:", text.substring(0, 100));
+        window.session_test_result = {{ status: 200, text: text }};
+    }})
+    .catch(error => {{
+        console.log("JS: Session test error:", error);
+        window.session_test_result = {{ status: 500, error: error.toString() }};
+    }});
+    '''
+    
+    try:
+        js.eval(test_js_code)
+        await asyncio.sleep(0.3)
+        if hasattr(js.window, 'session_test_result'):
+            test_result = js.window.session_test_result
+            print(f"DEBUG: spotipy_handling.py - Session test result: {test_result}")
+        else:
+            print(f"DEBUG: spotipy_handling.py - No session test result available")
+    except Exception as e:
+        print(f"DEBUG: spotipy_handling.py - Session test failed: {e}")
+    
     # Use async approach with js.eval for getting album tracks
-    import js
-    import json
-    import random
     
     js_code = f'''
     console.log("JS: Fetching album tracks for album_id:", "{album_id}");
     console.log("JS: Backend URL:", "{BACKEND_URL}");
     console.log("JS: Full URL:", "{BACKEND_URL}/album_tracks?album_id={album_id}");
+    
+    // Clear any existing result first
+    window.album_tracks_sync_result = null;
+    
+    // First, let's check what cookies we have
+    console.log("JS: Current cookies:", document.cookie);
+    
     fetch("{BACKEND_URL}/album_tracks?album_id={album_id}", {{
         method: "GET",
-        credentials: "include"
+        credentials: "include",
+        cache: "no-cache",
+        headers: {{
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }}
     }})
     .then(response => {{
         console.log("JS: Album tracks response status:", response.status);
@@ -1124,7 +1168,6 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
     
     try:
         js.eval(js_code)
-        import asyncio
         await asyncio.sleep(0.3)  # Wait longer for the fetch to complete
         
         tracks_data = None
@@ -1145,6 +1188,17 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
                     print(f"DEBUG: spotipy_handling.py - Album tracks failed with status: {error_status}")
                     print(f"DEBUG: spotipy_handling.py - Error text: {error_text}")
                     print(f"DEBUG: spotipy_handling.py - Error field: {error_error}")
+                    
+                    # Try to parse the error text as JSON to get more details
+                    try:
+                        if error_text and error_text.strip().startswith('{'):
+                            error_data = json.loads(error_text)
+                            print(f"DEBUG: spotipy_handling.py - Parsed error data: {error_data}")
+                        else:
+                            print(f"DEBUG: spotipy_handling.py - Error text is not JSON: '{error_text[:200]}...'")
+                    except Exception as parse_error:
+                        print(f"DEBUG: spotipy_handling.py - Failed to parse error text: {parse_error}")
+                        print(f"DEBUG: spotipy_handling.py - Raw error text: '{error_text[:200]}...'")
             elif isinstance(result, str):
                 # If it's a string, try to parse it as JSON
                 try:
@@ -1168,10 +1222,23 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
         tracks = tracks_data.get('items', []) if tracks_data else []
         print(f"DEBUG: spotipy_handling.py - Found {len(tracks)} tracks")
         
+        # Cache the tracks if we found them successfully
+        if tracks:
+            # Convert to JSON string to avoid JavaScript conversion issues
+            cache_data_json = json.dumps({
+                'tracks': tracks,
+                'timestamp': current_time
+            })
+            setattr(js.window, cache_key, cache_data_json)
+            print(f"DEBUG: spotipy_handling.py - Cached {len(tracks)} tracks for album {album_id}")
+        
         if not tracks:
-            print("DEBUG: spotipy_handling.py - No tracks found on first attempt, retrying in 2 seconds...")
-            # Wait a bit and try again - authentication might need time to establish
-            await asyncio.sleep(2.0)
+            print("DEBUG: spotipy_handling.py - No tracks found on first attempt, retrying with exponential backoff...")
+            # Try multiple retries with increasing delays
+            for retry_attempt in range(5):  # Increased from 3 to 5 retries
+                delay = (retry_attempt + 1) * 0.5  # Reduced delays: 0.5s, 1s, 1.5s, 2s, 2.5s
+                print(f"DEBUG: spotipy_handling.py - Retry attempt {retry_attempt + 1} in {delay} seconds...")
+                await asyncio.sleep(delay)
             
             # First test a simpler endpoint to see if backend is working
             print("DEBUG: spotipy_handling.py - Testing backend connectivity before retry...")
@@ -1206,6 +1273,9 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
             # Retry the request
             print("DEBUG: spotipy_handling.py - Retrying album tracks request...")
             try:
+                # Clear the result before retry to ensure fresh data
+                if hasattr(js.window, 'album_tracks_sync_result'):
+                    delattr(js.window, 'album_tracks_sync_result')
                 js.eval(js_code)
                 await asyncio.sleep(0.5)  # Wait for retry
                 
@@ -1219,6 +1289,16 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
                                 tracks_data = json.loads(result.get('text', '{}'))
                                 tracks = tracks_data.get('items', []) if tracks_data else []
                                 print(f"DEBUG: spotipy_handling.py - Retry found {len(tracks)} tracks")
+                                
+                                # Cache the tracks if retry was successful
+                                if tracks:
+                                    # Convert to JSON string to avoid JavaScript conversion issues
+                                    cache_data_json = json.dumps({
+                                        'tracks': tracks,
+                                        'timestamp': current_time
+                                    })
+                                    setattr(js.window, cache_key, cache_data_json)
+                                    print(f"DEBUG: spotipy_handling.py - Cached {len(tracks)} tracks from retry for album {album_id}")
                             except json.JSONDecodeError as e:
                                 print(f"DEBUG: spotipy_handling.py - Retry JSON decode error: {e}")
                         else:
@@ -1231,11 +1311,62 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
             except Exception as e:
                 print(f"DEBUG: spotipy_handling.py - Retry attempt failed: {e}")
             
-            # If still no tracks after retry, give up
+            # If still no tracks after retry, try to play the album directly
             if not tracks:
-                print("DEBUG: spotipy_handling.py - No tracks found after retry, calling callback with error")
-                song_info_updater_callback("No Tracks In Album", "N/A", False)
-                return
+                print("DEBUG: spotipy_handling.py - No tracks found after retry, trying to play album directly")
+                # Check if we have any cached tracks for this album that we can use
+                if hasattr(js.window, cache_key):
+                    try:
+                        cached_data_json = getattr(js.window, cache_key)
+                        cached_data = json.loads(cached_data_json)
+                        if isinstance(cached_data, dict) and 'tracks' in cached_data:
+                            tracks = cached_data['tracks']
+                            print(f"DEBUG: spotipy_handling.py - Using cached tracks as fallback: {len(tracks)} tracks")
+                            if tracks:
+                                # Select a random track from cached tracks
+                                track = random.choice(tracks)
+                                track_name = track.get('name', 'Unknown Track')
+                                artist_name = track.get('artists', [{}])[0].get('name', 'Unknown Artist') if track.get('artists') else 'Unknown Artist'
+                                
+                                # Play the track
+                                track_uri = track.get('uri', '')
+                                if track_uri:
+                                    print(f"DEBUG: spotipy_handling.py - Playing cached fallback track: {track_name} by {artist_name}")
+                                    await play_track_via_backend(track_uri, 0)
+                                    song_info_updater_callback(track_name, artist_name, False)
+                                    return
+                    except Exception as e:
+                        print(f"DEBUG: spotipy_handling.py - Failed to use cached tracks as fallback: {e}")
+                
+                # If no cached tracks, fall back to playing album directly
+                try:
+                    # Try to play the album directly using the album URI
+                    album_uri = f"spotify:album:{album_id}"
+                    print(f"DEBUG: spotipy_handling.py - Attempting to play album directly: {album_uri}")
+                    
+                    # Use the play_track_via_backend function to play the album
+                    print("DEBUG: spotipy_handling.py - About to call play_track_via_backend for album")
+                    play_result = await play_track_via_backend(album_uri, 0)
+                    print(f"DEBUG: spotipy_handling.py - play_track_via_backend result: {play_result}")
+                    if play_result:
+                        print("DEBUG: spotipy_handling.py - Successfully started playing album")
+                        # Try to get album info from the album_id
+                        album_name = "Album Playing"
+                        artist_name = "Random Track"
+                        
+                        # Extract album name from the album_id if possible
+                        # For now, we'll use a more descriptive message
+                        song_info_updater_callback(f"Playing Album", f"Random Track (API Fallback)", False)
+                        return
+                    else:
+                        print("DEBUG: spotipy_handling.py - Failed to play album directly")
+                        song_info_updater_callback("No Tracks In Album", "N/A", False)
+                        return
+                except Exception as e:
+                    print(f"DEBUG: spotipy_handling.py - Error playing album directly: {e}")
+                    print("DEBUG: spotipy_handling.py - Providing fallback song info")
+                    song_info_updater_callback("Album Loading...", "Please wait", False)
+                    return
         
         # Ensure proper randomization
         import random
@@ -1299,11 +1430,21 @@ async def get_album_search_input(screen, font):
         print("DEBUG: spotipy_handling.py - No event loop running for background music")
     except Exception as e:
         print(f"DEBUG: spotipy_handling.py - Exception starting background music: {e}")
+    
+    # Clear search music when album is selected
+    def clear_search_music():
+        """Clear search background music when transitioning to game"""
+        print("DEBUG: spotipy_handling.py - Clearing search background music")
+        try:
+            # This will be called when an album is selected
+            pass  # The pause will happen in snake_logic.py
+        except Exception as e:
+            print(f"DEBUG: spotipy_handling.py - Error clearing search music: {e}")
 
     input_box = pygame.Rect(width // 2 - 200, 100, 400, 50)
     results_area = pygame.Rect(width // 2 - 200, 160, 400, 300)
-    color_inactive = WHITE  # Changed back to white
-    color_active = WHITE    # Changed back to white
+    color_inactive = DARK_BLUE
+    color_active = LIGHT_BLUE
     color = color_inactive
     active = False
     text = ''
@@ -1311,65 +1452,19 @@ async def get_album_search_input(screen, font):
     album_covers = {}
     quit_button_font = pygame.font.SysFont("Press Start 2P", 20)
     quit_button_rect_local = pygame.Rect(20, height - 70, 250, 50)
-    
-    # Cursor animation variables
-    cursor_visible = True
-    cursor_timer = 0
-    cursor_blink_rate = 0.5  # Blink every 0.5 seconds
 
     async def download_album_covers_async():
-        """Download album covers asynchronously in parallel for better performance"""
+        """Download album covers asynchronously in the background"""
         nonlocal album_covers
-        
-        # Create tasks for parallel downloads
-        download_tasks = []
         for album in search_results:
             if album['image_url'] and album['uri'] not in album_covers:
-                task = download_and_resize_album_cover_async(album['image_url'], 50, 50)
-                download_tasks.append((album['uri'], album['name'], task))
-        
-        if download_tasks:
-            print(f"DEBUG: spotipy_handling.py - Starting parallel download of {len(download_tasks)} album covers")
-            
-            # Execute all downloads in parallel
-            for uri, name, task in download_tasks:
                 try:
-                    cover = await task
+                    cover = await download_and_resize_album_cover_async(album['image_url'], 50, 50)
                     if cover:
-                        album_covers[uri] = cover
-                        print(f"DEBUG: spotipy_handling.py - Downloaded cover for {name}")
-                    else:
-                        print(f"DEBUG: spotipy_handling.py - Failed to download cover for {name}")
+                        album_covers[album['uri']] = cover
+                        print(f"DEBUG: spotipy_handling.py - Downloaded cover for {album['name']}")
                 except Exception as e:
-                    print(f"DEBUG: spotipy_handling.py - Failed to download cover for {name}: {e}")
-            
-            print(f"DEBUG: spotipy_handling.py - Completed parallel download of album covers")
-
-    async def preload_visible_covers():
-        """Preload covers for currently visible search results"""
-        nonlocal album_covers
-        
-        # Only preload covers for the first few results that are likely visible
-        visible_count = min(5, len(search_results))
-        preload_tasks = []
-        
-        for i in range(visible_count):
-            album = search_results[i]
-            if album['image_url'] and album['uri'] not in album_covers:
-                task = download_and_resize_album_cover_async(album['image_url'], 50, 50)
-                preload_tasks.append((album['uri'], album['name'], task))
-        
-        if preload_tasks:
-            print(f"DEBUG: spotipy_handling.py - Preloading {len(preload_tasks)} visible covers")
-            # Execute preloads in parallel
-            for uri, name, task in preload_tasks:
-                try:
-                    cover = await task
-                    if cover:
-                        album_covers[uri] = cover
-                        print(f"DEBUG: spotipy_handling.py - Preloaded cover for {name}")
-                except Exception as e:
-                    print(f"DEBUG: spotipy_handling.py - Failed to preload cover for {name}: {e}")
+                    print(f"DEBUG: spotipy_handling.py - Failed to download cover for {album['name']}: {e}")
 
     async def draw_search_results_local():
         nonlocal album_covers
@@ -1433,20 +1528,6 @@ async def get_album_search_input(screen, font):
         else:
             no_results_surf = font.render("Type to search. Press Enter.", True, WHITE)
             screen.blit(no_results_surf, (results_area.x + 10, results_area.y + 10))
-        
-        # Add login button if authentication is required
-        if search_results and any('Authentication Required' in album.get('name', '') for album in search_results):
-            login_button_rect = pygame.Rect(results_area.x + 10, results_area.y + 200, 200, 40)
-            pygame.draw.rect(screen, GREEN, login_button_rect)
-            login_text = pygame.font.SysFont('corbel', 16).render("Click to Login", True, BLACK)
-            login_text_rect = login_text.get_rect(center=login_button_rect.center)
-            screen.blit(login_text, login_text_rect)
-            
-            # Check if login button was clicked
-            if event.type == pygame.MOUSEBUTTONDOWN and login_button_rect.collidepoint(event.pos):
-                print("DEBUG: spotipy_handling.py - Login button clicked during search")
-                backend_login()
-                return "LOGIN_REQUESTED"
 
     loop_iteration = 0
     while True:
@@ -1485,14 +1566,6 @@ async def get_album_search_input(screen, font):
                             print("DEBUG: spotipy_handling.py - get_album_search_input returning album result")
                             return album_click
                         y_offset_click += 80
-                
-                # Check for login button click
-                if search_results and any('Authentication Required' in album.get('name', '') for album in search_results):
-                    login_button_rect = pygame.Rect(results_area.x + 10, results_area.y + 200, 200, 40)
-                    if login_button_rect.collidepoint(event.pos):
-                        print("DEBUG: spotipy_handling.py - Login button clicked during search")
-                        backend_login()
-                        return "LOGIN_REQUESTED"
             if event.type == pygame.KEYDOWN:
                 if active:
                     if event.key == pygame.K_RETURN:
@@ -1512,55 +1585,17 @@ async def get_album_search_input(screen, font):
                                     }
                                     search_results.append(album_data)
                                 print(f"DEBUG: spotipy_handling.py - Found {len(search_results)} albums")
-                                
-                                # Clear any old covers and start preloading new ones
-                                album_covers.clear()
-                                
-                                # Start preloading covers for visible results in background
-                                if search_results:
-                                    asyncio.create_task(preload_visible_covers())
-                            elif backend_results and 'error' in backend_results:
-                                error_msg = backend_results.get('error', 'Unknown error')
-                                print(f"DEBUG: spotipy_handling.py - Search returned error: {error_msg}")
-                                if 'Not authenticated' in error_msg or '401' in str(error_msg):
-                                    search_results = [
-                                        {
-                                            'name': 'Authentication Required',
-                                            'uri': 'spotify:album:auth_required',
-                                            'image_url': None,
-                                            'artist': 'Please login again'
-                                        }
-                                    ]
-                                else:
-                                    search_results = [
-                                        {
-                                            'name': f'Search Error: {error_msg}',
-                                            'uri': 'spotify:album:error',
-                                            'image_url': None,
-                                            'artist': 'Try again or contact support'
-                                        }
-                                    ]
-                                album_covers.clear()
-                            elif not backend_results:
-                                print(f"DEBUG: spotipy_handling.py - Search returned None (debounced or failed)")
-                                search_results = [
-                                    {
-                                        'name': 'Search in progress...',
-                                        'uri': 'spotify:album:progress',
-                                        'image_url': None,
-                                        'artist': 'Please wait'
-                                    }
-                                ]
+                                # Clear any old covers - we'll download them on-demand in the drawing function
                                 album_covers.clear()
                             else:
                                 print(f"DEBUG: spotipy_handling.py - No albums found in search results")
                                 # Create a fallback result if search fails
                                 search_results = [
                                     {
-                                        'name': 'No albums found',
-                                        'uri': 'spotify:album:none',
-                                        'image_url': None,
-                                        'artist': 'Try a different search term'
+                                        'name': 'Search Failed - Try Again',
+                                        'uri': 'spotify:album:fallback',
+                                        'image_url': 'https://example.com/fallback.jpg',
+                                        'artist': 'Unknown Artist'
                                     }
                                 ]
                                 album_covers.clear()
@@ -1569,16 +1604,8 @@ async def get_album_search_input(screen, font):
                         if not text:
                             search_results = []
                             album_covers.clear()
-                            # Clear search cache when clearing text
-                            clear_search_cache()
                     else:
-                        # Only add character if it's printable and search isn't too long
-                        if event.unicode.isprintable() and len(text) < 50:
-                            text += event.unicode
-                            # Clear results when typing to show new search state
-                            if search_results:
-                                search_results = []
-                                album_covers.clear()
+                        text += event.unicode
         screen.fill((30, 30, 30))
         if game_bg:
             screen.blit(game_bg, (0, 0))
@@ -1588,62 +1615,15 @@ async def get_album_search_input(screen, font):
         label = label_font.render("Search for an album:", True, WHITE)
         screen.blit(label, (input_box.x, input_box.y - 40))
         txt_surface = font.render(text, True, BLACK)
-        
-        # Optimize drawing by only updating when necessary
-        if loop_iteration % 4 == 0:  # Update every 4th frame for better performance
-            await draw_search_results_local()
-        
-        # Draw input box and text
-        # Change background color based on active state
-        if active:
-            pygame.draw.rect(screen, (245, 245, 245), input_box)  # Light gray when active
-        else:
-            pygame.draw.rect(screen, color, input_box)  # White when inactive
-        
-        # Change border color and width based on active state
-        border_color = LIGHT_BLUE if active else BLACK
-        border_width = 3 if active else 2
-        pygame.draw.rect(screen, border_color, input_box, border_width)
-        
-        # Draw the text
-        screen.blit(txt_surface, (input_box.x + 5, input_box.y + 15))
-        
-        # Draw blinking cursor when search box is active
-        if active and cursor_visible:
-            # Calculate cursor position at the end of the text
-            cursor_x = input_box.x + 5 + txt_surface.get_width()
-            cursor_y_start = input_box.y + 15
-            cursor_y_end = input_box.y + 15 + font.get_height()
-            
-            # Draw the cursor line with better visibility and pulse effect
-            cursor_width = 3 if active else 2
-            pygame.draw.line(screen, BLACK, (cursor_x, cursor_y_start), (cursor_x, cursor_y_end), cursor_width)
-            
-            # Add a subtle glow effect when active
-            if active:
-                pygame.draw.line(screen, LIGHT_BLUE, (cursor_x-1, cursor_y_start), (cursor_x-1, cursor_y_end), 1)
-                pygame.draw.line(screen, LIGHT_BLUE, (cursor_x+1, cursor_y_start), (cursor_x+1, cursor_y_end), 1)
-        
-        # Draw quit button
+        screen.blit(txt_surface, (input_box.x + 5, input_box.y + 5))
+        pygame.draw.rect(screen, color, input_box, 2)
+        await draw_search_results_local()
         pygame.draw.rect(screen, LIGHT_BLUE, quit_button_rect_local)
-        quit_text = quit_button_font.render("BACK TO MENU", True, BLACK)
-        quit_text_rect = quit_text.get_rect(center=quit_button_rect_local.center)
-        screen.blit(quit_text, quit_text_rect)
-        
+        quit_text_surf = quit_button_font.render("BACK TO MENU", True, BLACK)
+        quit_text_rect = quit_text_surf.get_rect(center=quit_button_rect_local.center)
+        screen.blit(quit_text_surf, quit_text_rect)
         pygame.display.flip()
-        
-        # Limit frame rate for better performance
-        await asyncio.sleep(0.033)  # ~30 FPS instead of 60 FPS
-        
-        # Cursor animation
-        current_time = time.time()
-        if current_time - cursor_timer > cursor_blink_rate:
-            cursor_timer = current_time
-            cursor_visible = not cursor_visible
-        
-        if cursor_visible:
-            pygame.draw.line(screen, BLACK, (input_box.x + 5, input_box.y + 15 + font.get_height()), 
-                             (input_box.x + 5 + txt_surface.get_width(), input_box.y + 15 + font.get_height()), 2)
+        await asyncio.sleep(0.01)
     print("DEBUG: spotipy_handling.py - get_album_search_input called (END, should never reach here)")
 
 # Browser-safe: play track via backend
@@ -1754,57 +1734,6 @@ async def search_album_via_backend(query):
             }
         }
     
-    # Check cache first for performance
-    cached_results = get_cached_search(query)
-    if cached_results:
-        return cached_results
-    
-    # Debounce search requests to avoid excessive API calls
-    if should_debounce_search():
-        print(f"DEBUG: spotipy_handling.py - Debouncing search request for: {query}")
-        return None
-    
-    # Test authentication first
-    print(f"DEBUG: spotipy_handling.py - Testing authentication before search")
-    auth_result = await check_authenticated()
-    print(f"DEBUG: spotipy_handling.py - Authentication test result: {auth_result}")
-    
-    if not auth_result:
-        print(f"DEBUG: spotipy_handling.py - User not authenticated, cannot search")
-        return {'error': 'Not authenticated - please login first'}
-    
-    # Test backend connectivity
-    print(f"DEBUG: spotipy_handling.py - Testing backend connectivity before search")
-    try:
-        import js
-        js_code = f'''
-        fetch("{BACKEND_URL}/ping", {{
-            method: "GET",
-            credentials: "include"
-        }})
-        .then(response => {{
-            console.log("JS: Ping response status:", response.status);
-            window.ping_result = {{ status: response.status }};
-        }})
-        .catch(error => {{
-            console.log("JS: Ping error:", error);
-            window.ping_result = {{ status: 500, error: error.toString() }};
-        }});
-        '''
-        js.eval(js_code)
-        await asyncio.sleep(0.1)
-        
-        if hasattr(js.window, 'ping_result'):
-            ping_result = js.window.ping_result
-            if isinstance(ping_result, dict) and ping_result.get('status') != 200:
-                print(f"DEBUG: spotipy_handling.py - Backend ping failed: {ping_result}")
-                return {'error': 'Backend connectivity issue'}
-            print(f"DEBUG: spotipy_handling.py - Backend ping successful")
-        else:
-            print(f"DEBUG: spotipy_handling.py - No ping result available")
-    except Exception as e:
-        print(f"DEBUG: spotipy_handling.py - Error testing backend connectivity: {e}")
-    
     import js
     import json
     
@@ -1854,14 +1783,12 @@ async def search_album_via_backend(query):
         .catch(function(error) {{
             console.log("JS: Search fetch error:", error);
             console.log("JS: Error message:", error.message);
-            console.log("JS: Error stack:", error.stack);
             window.search_result = {{ status: 500, error: error.toString(), message: error.message }};
             console.log("JS: Search error stored in window");
         }});
         console.log("JS: Fetch executed, waiting for response...");
     }} catch (error) {{
         console.log("JS: Top-level error:", error);
-        console.log("JS: Top-level error stack:", error.stack);
         window.search_result = {{ status: 500, error: error.toString(), message: error.message }};
         console.log("JS: Top-level error stored in window");
     }}
@@ -1872,14 +1799,14 @@ async def search_album_via_backend(query):
         print(f"DEBUG: spotipy_handling.py - Executing search JavaScript code")
         js.eval(js_code)
         
-        # Optimized waiting with shorter intervals and fewer attempts
-        max_attempts = 6  # Reduced from 10
+        # Wait for the search result
+        max_attempts = 10
         for attempt in range(max_attempts):
             if hasattr(js.window, 'search_result'):
                 result = js.window.search_result
                 if result is not None:
                     break
-            await asyncio.sleep(0.05)  # Reduced from 0.1 to 0.05 seconds
+            await asyncio.sleep(0.1)
         
         if hasattr(js.window, 'search_result'):
             result = js.window.search_result
@@ -1890,23 +1817,17 @@ async def search_album_via_backend(query):
                 if status == 200:
                     try:
                         search_data = json.loads(result.get('text', '{}'))
-                        # Cache successful results
-                        cache_search_results(query, search_data)
                         return search_data
                     except json.JSONDecodeError as e:
                         print(f"DEBUG: spotipy_handling.py - JSON decode error: {e}")
-                        print(f"DEBUG: spotipy_handling.py - Raw text: {result.get('text', 'No text')}")
                         return None
                 else:
                     print(f"DEBUG: spotipy_handling.py - Search failed with status: {status}")
-                    print(f"DEBUG: spotipy_handling.py - Error details: {result}")
                     return None
             elif isinstance(result, str):
                 # If it's a string, try to parse it as JSON
                 try:
                     search_data = json.loads(result)
-                    # Cache successful results
-                    cache_search_results(query, search_data)
                     return search_data
                 except json.JSONDecodeError as e:
                     print(f"DEBUG: spotipy_handling.py - JSON decode error from string: {e}")
@@ -1918,8 +1839,6 @@ async def search_album_via_backend(query):
                     if status == 200:
                         text = getattr(result, 'text', '{}')
                         search_data = json.loads(text)
-                        # Cache successful results
-                        cache_search_results(query, search_data)
                         return search_data
                     else:
                         print(f"DEBUG: spotipy_handling.py - Search failed with status: {status}")
@@ -2309,10 +2228,3 @@ async def base64_to_pygame_surface_pygbag(base64_data, target_width, target_heig
     except Exception as e:
         print(f"DEBUG: spotipy_handling.py - Error creating pygame surface from base64: {e}")
         return create_visual_album_cover_from_data(image_data, target_width, target_height)
-
-async def force_reauthentication():
-    """Force the user to re-authenticate by clearing state and opening login"""
-    print("DEBUG: spotipy_handling.py - Force re-authentication called")
-    clear_authentication_state()
-    backend_login()
-    return False
