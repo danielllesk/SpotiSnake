@@ -649,11 +649,18 @@ def album_tracks():
     album_id = request.args.get('album_id')
     logging.debug(f"DEBUG: backend.py - Getting tracks for album: {album_id}")
     try:
+        logging.debug(f"DEBUG: backend.py - About to call sp.album_tracks with album_id: {album_id}")
         results = sp.album_tracks(album_id, limit=50)
         logging.debug(f"DEBUG: backend.py - Found {len(results.get('items', []))} tracks")
         logging.debug(f"DEBUG: backend.py - Album tracks response: {results}")
+    except SpotifyException as e:
+        logging.error(f"DEBUG: backend.py - SpotifyException getting album tracks: {e}")
+        logging.error(f"DEBUG: backend.py - SpotifyException details: status={e.http_status}, msg={e.msg}")
+        response = jsonify({'error': f'Spotify API error: {str(e)}', 'status': e.http_status, 'msg': e.msg}), 500
+        return add_cors_headers(response)
     except Exception as e:
-        logging.error(f"DEBUG: backend.py - Error getting album tracks: {e}")
+        logging.error(f"DEBUG: backend.py - General error getting album tracks: {e}")
+        logging.error(f"DEBUG: backend.py - Error type: {type(e)}")
         response = jsonify({'error': f'Failed to get album tracks: {str(e)}'}), 500
         return add_cors_headers(response)
     response = jsonify(results)
