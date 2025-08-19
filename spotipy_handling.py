@@ -1417,6 +1417,11 @@ async def get_album_search_input(screen, font):
     album_covers = {}
     quit_button_font = pygame.font.SysFont("Press Start 2P", 20)
     quit_button_rect_local = pygame.Rect(20, height - 70, 250, 50)
+    
+    # Cursor variables
+    cursor_visible = True
+    cursor_timer = 0
+    cursor_blink_rate = 500  # milliseconds
 
     async def download_album_covers_async():
         """Download album covers asynchronously in the background"""
@@ -1581,12 +1586,28 @@ async def get_album_search_input(screen, font):
         screen.blit(label, (input_box.x, input_box.y - 40))
         txt_surface = font.render(text, True, BLACK)
         screen.blit(txt_surface, (input_box.x + 5, input_box.y + 5))
+        
+        # Draw blinking cursor when input is active
+        if active and cursor_visible:
+            # Calculate cursor position based on text width
+            text_width = txt_surface.get_width()
+            cursor_x = input_box.x + 5 + text_width
+            cursor_y = input_box.y + 5
+            cursor_height = txt_surface.get_height()
+            pygame.draw.line(screen, BLACK, (cursor_x, cursor_y), (cursor_x, cursor_y + cursor_height), 2)
+        
         pygame.draw.rect(screen, color, input_box, 2)
         await draw_search_results_local()
         pygame.draw.rect(screen, LIGHT_BLUE, quit_button_rect_local)
         quit_text_surf = quit_button_font.render("BACK TO MENU", True, BLACK)
         quit_text_rect = quit_text_surf.get_rect(center=quit_button_rect_local.center)
         screen.blit(quit_text_surf, quit_text_rect)
+        # Update cursor blinking
+        cursor_timer += 16  # Approximately 60 FPS
+        if cursor_timer >= cursor_blink_rate:
+            cursor_visible = not cursor_visible
+            cursor_timer = 0
+        
         pygame.display.flip()
         await asyncio.sleep(0.01)
     print("DEBUG: spotipy_handling.py - get_album_search_input called (END, should never reach here)")
