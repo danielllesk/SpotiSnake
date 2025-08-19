@@ -1,5 +1,6 @@
 import os
 import time
+from datetime import timedelta
 from flask import Flask, request, jsonify, session, redirect
 from flask_cors import CORS, cross_origin
 from spotipy.oauth2 import SpotifyPKCE
@@ -31,6 +32,9 @@ else:
     app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Allow cross-site cookies
     app.config['SESSION_COOKIE_SECURE'] = True      # Required for SameSite=None (must use HTTPS)
     app.config['SESSION_COOKIE_DOMAIN'] = None      # No domain restriction for now
+
+# Set session lifetime to 24 hours to prevent premature expiration
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 
 # Add session debugging
 logging.debug(f"DEBUG: backend.py - Session config - SameSite: {app.config['SESSION_COOKIE_SAMESITE']}")
@@ -220,10 +224,12 @@ def callback():
         # If token_info is a string, wrap it in a dict
         if isinstance(token_info, str):
             token_info = {'access_token': token_info}
+        session.permanent = True  # Make session permanent so it doesn't expire
         session['token_info'] = token_info
         logging.debug("DEBUG: backend.py - Token stored in session")
         logging.debug(f"DEBUG: backend.py - Session contents after storing token: {dict(session)}")
         logging.debug(f"DEBUG: backend.py - Session ID: {session.sid if hasattr(session, 'sid') else 'No SID'}")
+        logging.debug(f"DEBUG: backend.py - Session permanent: {session.permanent}")
         # Test the token immediately
         sp = spotipy.Spotify(auth=token_info['access_token'])
         user_info = sp.current_user()
@@ -631,6 +637,11 @@ def debug_session():
 @app.route('/album_tracks')
 def album_tracks():
     logging.debug("DEBUG: backend.py - /album_tracks endpoint called")
+    
+    # Add detailed session debugging
+    logging.debug(f"DEBUG: backend.py - Session ID: {session.get('_id', 'No session ID')}")
+    logging.debug(f"DEBUG: backend.py - Session contents: {dict(session)}")
+    logging.debug(f"DEBUG: backend.py - Session permanent: {session.get('_permanent', False)}")
     
     # Check session first
     token_info = session.get('token_info')

@@ -153,6 +153,15 @@ async def start_game(screen):
     except Exception as e:
         print(f"DEBUG: snake_logic.py - Error clearing playback: {e}")
     
+    # Reset first song flag for new album
+    try:
+        import js
+        if hasattr(js.window, 'first_song_played'):
+            delattr(js.window, 'first_song_played')
+            print("DEBUG: snake_logic.py - Reset first_song_played flag for new album")
+    except Exception as e:
+        print(f"DEBUG: snake_logic.py - Error resetting first_song_played flag: {e}")
+    
     # Get album tracks and play a random one
     from spotipy_handling import play_random_track_from_album
     print(f"DEBUG: snake_logic.py - Playing random track from album: {album_result['uri']}")

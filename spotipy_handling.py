@@ -1097,6 +1097,28 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
     # Skip the session test and delays - go straight to album tracks
     print(f"DEBUG: spotipy_handling.py - Skipping session test and delays for faster loading")
     
+    # For the first song, try to play the album directly first to ensure immediate playback
+    # This avoids the API call delay that might be causing the first song not to play
+    if not hasattr(js.window, 'first_song_played'):
+        print(f"DEBUG: spotipy_handling.py - First song, playing album directly for immediate playback")
+        try:
+            album_uri = f"spotify:album:{album_id}"
+            print(f"DEBUG: spotipy_handling.py - Playing album directly: {album_uri}")
+            play_result = await play_track_via_backend(album_uri, 0)
+            if play_result:
+                print("DEBUG: spotipy_handling.py - Successfully started playing album for first song")
+                song_info_updater_callback("Album Playing", "Random Track", False)
+                # Mark that we've played the first song
+                setattr(js.window, 'first_song_played', True)
+                return
+            else:
+                print("DEBUG: spotipy_handling.py - Failed to play album directly, will try API")
+        except Exception as e:
+            print(f"DEBUG: spotipy_handling.py - Error playing album directly: {e}")
+    
+    # Mark that we've attempted the first song
+    setattr(js.window, 'first_song_played', True)
+    
     # Use async approach with js.eval for getting album tracks
     
     js_code = f'''
