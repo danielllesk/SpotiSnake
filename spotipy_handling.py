@@ -1388,9 +1388,57 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
         song_info_updater_callback("Error Loading Album", "N/A", False)
 
 async def safe_pause_playback():
-    print("DEBUG: spotipy_handling.py - safe_pause_playback called (disabled due to CORS)")
-    # Temporarily disable pause to avoid CORS issues
-    return True
+    print("DEBUG: spotipy_handling.py - safe_pause_playback called")
+    
+    if not is_pyodide():
+        print("DEBUG: spotipy_handling.py - Not in browser environment, skipping pause")
+        return True
+    
+    try:
+        import js
+        
+        # Use JavaScript to call the pause endpoint
+        js_code = f'''
+        console.log("JS: Pausing music via safe_pause_playback");
+        fetch("{BACKEND_URL}/pause", {{
+            method: "POST",
+            headers: {{
+                "Content-Type": "application/json"
+            }},
+            credentials: "include"
+        }})
+        .then(response => {{
+            console.log("JS: Safe pause request sent");
+            window.safe_pause_result = {{ status: response.status }};
+        }})
+        .catch(error => {{
+            console.log("JS: Safe pause request failed:", error);
+            window.safe_pause_result = {{ status: 500, error: error.toString() }};
+        }});
+        '''
+        
+        js.eval(js_code)
+        
+        # Wait a bit for the request to complete
+        import asyncio
+        await asyncio.sleep(0.1)
+        
+        # Check if the pause was successful
+        if hasattr(js.window, 'safe_pause_result'):
+            result = js.window.safe_pause_result
+            if isinstance(result, dict) and result.get('status') == 200:
+                print("DEBUG: spotipy_handling.py - Music paused successfully")
+                return True
+            else:
+                print(f"DEBUG: spotipy_handling.py - Pause failed with status: {result}")
+                return False
+        else:
+            print("DEBUG: spotipy_handling.py - No pause result available")
+            return False
+            
+    except Exception as e:
+        print(f"DEBUG: spotipy_handling.py - Exception in safe_pause_playback: {e}")
+        return False
 
 async def cleanup():
     print("DEBUG: spotipy_handling.py - cleanup called")
@@ -2236,3 +2284,115 @@ async def base64_to_pygame_surface_pygbag(base64_data, target_width, target_heig
     except Exception as e:
         print(f"DEBUG: spotipy_handling.py - Error creating pygame surface from base64: {e}")
         return create_visual_album_cover_from_data(image_data, target_width, target_height)
+
+def setup_page_unload_handler():
+    """Set up event listeners to pause music when user leaves the page."""
+    if not is_pyodide():
+        print("DEBUG: spotipy_handling.py - Not in browser environment, skipping page unload handler")
+        return
+    
+    try:
+        import js
+        
+        # More robust JavaScript code using synchronous XMLHttpRequest for unload events
+        js_code = f'''
+        console.log("JS: Setting up page unload handlers for music pause");
+        
+        // Function to pause music via backend using multiple methods for unload events
+        window.pauseMusicOnUnload = function() {{
+            console.log("JS: Page unload detected, pausing music");
+            
+            // Method 1: Use navigator.sendBeacon (most reliable for unload events)
+            if (navigator.sendBeacon) {{
+                try {{
+                    var data = new Blob(['{{}}'], {{type: 'application/json'}});
+                    var success = navigator.sendBeacon('{BACKEND_URL}/pause', data);
+                    console.log("JS: sendBeacon pause request sent, success:", success);
+                }} catch (error) {{
+                    console.log("JS: sendBeacon pause request failed:", error);
+                }}
+            }}
+            
+            // Method 2: Use synchronous XMLHttpRequest as fallback
+            try {{
+                var xhr = new XMLHttpRequest();
+                xhr.open('POST', '{BACKEND_URL}/pause', false); // Synchronous
+                xhr.setRequestHeader('Content-Type', 'application/json');
+                xhr.withCredentials = true;
+                xhr.send();
+                console.log("JS: Synchronous pause request sent, status:", xhr.status);
+            }} catch (error) {{
+                console.log("JS: Synchronous pause request failed:", error);
+            }}
+        }};
+        
+        // Function for visibility change (can use async fetch)
+        window.pauseMusicOnVisibilityChange = function() {{
+            console.log("JS: Page visibility changed, pausing music");
+            fetch('{BACKEND_URL}/pause', {{
+                method: "POST",
+                headers: {{
+                    "Content-Type": "application/json"
+                }},
+                credentials: "include"
+            }})
+            .then(response => {{
+                console.log("JS: Visibility change pause request sent");
+            }})
+            .catch(error => {{
+                console.log("JS: Visibility change pause request failed:", error);
+            }});
+        }};
+        
+        // Set up event listeners for different scenarios
+        window.addEventListener('beforeunload', window.pauseMusicOnUnload);
+        window.addEventListener('unload', window.pauseMusicOnUnload);
+        window.addEventListener('pagehide', window.pauseMusicOnUnload);
+        
+        // For mobile browsers and PWA scenarios
+        document.addEventListener('visibilitychange', function() {{
+            if (document.visibilityState === 'hidden') {{
+                console.log("JS: Page hidden, pausing music");
+                window.pauseMusicOnVisibilityChange();
+            }}
+        }});
+        
+        // Also try to pause when the window loses focus
+        window.addEventListener('blur', function() {{
+            console.log("JS: Window lost focus, pausing music");
+            window.pauseMusicOnVisibilityChange();
+        }});
+        
+        console.log("JS: Page unload handlers set up successfully");
+        
+        // Set up a heartbeat to detect if the page is still active
+        window.pageActiveHeartbeat = Date.now();
+        setInterval(function() {{
+            window.pageActiveHeartbeat = Date.now();
+        }}, 1000);
+        
+        // Check if page is still active every 5 seconds
+        setInterval(function() {{
+            var timeSinceLastHeartbeat = Date.now() - window.pageActiveHeartbeat;
+            if (timeSinceLastHeartbeat > 10000) {{ // More than 10 seconds since last heartbeat
+                console.log("JS: Page appears to be inactive, pausing music");
+                window.pauseMusicOnVisibilityChange();
+            }}
+        }}, 5000);
+        
+        // Add a test function that can be called manually
+        window.testPauseMusic = function() {{
+            console.log("JS: Manual test of pause music function");
+            window.pauseMusicOnVisibilityChange();
+        }};
+        
+        console.log("JS: Test function available: window.testPauseMusic()");
+        '''
+        
+        js.eval(js_code)
+        print("DEBUG: spotipy_handling.py - Page unload handlers set up successfully")
+        
+    except Exception as e:
+        print(f"DEBUG: spotipy_handling.py - Failed to set up page unload handlers: {e}")
+        import traceback
+        traceback.print_exc()

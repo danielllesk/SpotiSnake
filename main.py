@@ -14,6 +14,15 @@ print("DEBUG: main.py - Pygame font initialized successfully")
 async def main():
     print("DEBUG: main.py - main() function entered")
     try:
+        # Set up page unload handler to pause music when user leaves (non-blocking)
+        try:
+            from spotipy_handling import setup_page_unload_handler
+            setup_page_unload_handler()
+            print("DEBUG: main.py - Page unload handler set up")
+        except Exception as e:
+            print(f"DEBUG: main.py - Failed to set up page unload handler: {e}")
+            print("DEBUG: main.py - Continuing without page unload handler")
+        
         print("DEBUG: main.py - About to call start_menu()")
         await start_menu()
         print("DEBUG: main.py - start_menu() completed successfully")
