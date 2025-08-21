@@ -13,6 +13,8 @@ import os
 import time
 print("DEBUG: ui.py - Importing shared_constants")
 from shared_constants import *
+print("DEBUG: ui.py - shared_constants imported successfully")
+print(f"DEBUG: ui.py - fruit_image available: {fruit_image is not None}")
 print("DEBUG: ui.py - Importing spotipy_handling functions")
 from spotipy_handling import (
     get_album_search_input, cleanup, get_spotify_device, safe_pause_playback, backend_login, check_authenticated, play_uri_with_details, play_track_via_backend

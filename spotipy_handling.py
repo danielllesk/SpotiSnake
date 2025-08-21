@@ -1097,6 +1097,38 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
     # Skip the session test and delays - go straight to album tracks
     print(f"DEBUG: spotipy_handling.py - Skipping session test and delays for faster loading")
     
+    # Test backend connectivity first
+    print(f"DEBUG: spotipy_handling.py - Testing backend connectivity")
+    try:
+        test_js_code = f'''
+        fetch("{BACKEND_URL}/ping", {{
+            method: "GET",
+            credentials: "include"
+        }})
+        .then(response => {{
+            console.log("JS: Ping response status:", response.status);
+            return response.text();
+        }})
+        .then(text => {{
+            console.log("JS: Ping response:", text);
+            window.ping_result = {{ status: 200, text: text }};
+        }})
+        .catch(error => {{
+            console.log("JS: Ping error:", error);
+            window.ping_result = {{ status: 500, error: error.toString() }};
+        }});
+        '''
+        js.eval(test_js_code)
+        await asyncio.sleep(0.2)
+        
+        if hasattr(js.window, 'ping_result'):
+            ping_result = js.window.ping_result
+            print(f"DEBUG: spotipy_handling.py - Backend ping result: {ping_result}")
+        else:
+            print(f"DEBUG: spotipy_handling.py - No ping result received")
+    except Exception as e:
+        print(f"DEBUG: spotipy_handling.py - Backend ping test failed: {e}")
+    
     # For the first song, try to play the album directly first to ensure immediate playback
     # This avoids the API call delay that might be causing the first song not to play
     if not hasattr(js.window, 'first_song_played'):
@@ -1192,6 +1224,7 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
                     print(f"DEBUG: spotipy_handling.py - Album tracks failed with status: {error_status}")
                     print(f"DEBUG: spotipy_handling.py - Error text: {error_text}")
                     print(f"DEBUG: spotipy_handling.py - Error field: {error_error}")
+                    print(f"DEBUG: spotipy_handling.py - Full error response: {result}")
                     
                     # Try to parse the error text as JSON to get more details
                     try:

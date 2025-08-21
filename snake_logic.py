@@ -51,6 +51,7 @@ def cut_image_into_pieces(image_surface, piece_width, piece_height):
 async def start_game(screen):
     """Initializes and runs the main SpotiSnake game loop, including setup and event handling."""
     print("DEBUG: snake_logic.py - start_game called")
+    print(f"DEBUG: snake_logic.py - fruit_image available: {fruit_image is not None}")
     pygame.display.set_caption('SpotiSnake')
 
     album_result = None
@@ -314,12 +315,12 @@ async def start_game(screen):
         for block in snake_body:
             pygame.draw.rect(screen, GREEN, pygame.Rect(block[0], block[1], GRID_SIZE, GRID_SIZE))
 
-        if fruit_album_grid in album_pieces:
-            is_fruit_on_revealed_area = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE) in revealed_pieces
-            if not is_fruit_on_revealed_area:
-                screen.blit(pygame.transform.scale(album_pieces[fruit_album_grid], (GRID_SIZE, GRID_SIZE)), 
-                           (fruit_pos[0] - pulse//2, fruit_pos[1] - pulse//2))
-        else: 
+        # Always use custom fruit image if available, otherwise fall back to white rectangle
+        if fruit_image is not None:
+            # Draw the fruit image with pulse effect
+            fruit_surface = pygame.transform.scale(fruit_image, (GRID_SIZE + pulse, GRID_SIZE + pulse))
+            screen.blit(fruit_surface, (fruit_pos[0] - pulse//2, fruit_pos[1] - pulse//2))
+        else:
             pygame.draw.rect(screen, WHITE, 
                            pygame.Rect(fruit_pos[0] - pulse//2, fruit_pos[1] - pulse//2, 
                                      GRID_SIZE + pulse, GRID_SIZE + pulse))
@@ -690,12 +691,12 @@ async def start_game_with_album(screen, album_result):
         for block in snake_body:
             pygame.draw.rect(screen, GREEN, pygame.Rect(block[0], block[1], GRID_SIZE, GRID_SIZE))
 
-        if fruit_album_grid in album_pieces:
-            is_fruit_on_revealed_area = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE) in revealed_pieces
-            if not is_fruit_on_revealed_area:
-                screen.blit(pygame.transform.scale(album_pieces[fruit_album_grid], (GRID_SIZE, GRID_SIZE)), 
-                           (fruit_pos[0] - pulse//2, fruit_pos[1] - pulse//2))
-        else: 
+        # Always use custom fruit image if available, otherwise fall back to white rectangle
+        if fruit_image is not None:
+            # Draw the fruit image with pulse effect
+            fruit_surface = pygame.transform.scale(fruit_image, (GRID_SIZE + pulse, GRID_SIZE + pulse))
+            screen.blit(fruit_surface, (fruit_pos[0] - pulse//2, fruit_pos[1] - pulse//2))
+        else:
             pygame.draw.rect(screen, WHITE, 
                            pygame.Rect(fruit_pos[0] - pulse//2, fruit_pos[1] - pulse//2, 
                                      GRID_SIZE + pulse, GRID_SIZE + pulse))

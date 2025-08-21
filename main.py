@@ -1,7 +1,9 @@
 print("PYTHON MAIN STARTED")
 print("DEBUG: main.py - Starting application initialization")
 
+print("DEBUG: main.py - About to import ui module")
 from ui import start_menu
+print("DEBUG: main.py - ui module imported successfully")
 import asyncio
 import pygame
 

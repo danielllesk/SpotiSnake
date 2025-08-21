@@ -83,6 +83,7 @@ OUTLINE_THICKNESS = 2
 
 # Game backgrounds (load by filename only for browser compatibility)
 print("DEBUG: shared_constants.py - Starting to load background images")
+print("DEBUG: shared_constants.py - Module loaded successfully")
 
 def load_image_simple(filename):
     """Load an image with simple error handling"""
@@ -99,6 +100,29 @@ def load_image_simple(filename):
         print(f"DEBUG: shared_constants.py - Failed to load {filename}: {e}")
         return None
 
+def load_fruit_image():
+    """Load the custom fruit image for the game"""
+    if pygame is None:
+        print("DEBUG: shared_constants.py - Skipping fruit image load (backend context)")
+        return None
+    try:
+        print("DEBUG: shared_constants.py - Loading fruit.png")
+        print(f"DEBUG: shared_constants.py - Current working directory: {os.getcwd()}")
+        print(f"DEBUG: shared_constants.py - fruit.png exists: {os.path.exists('fruit.png')}")
+        fruit_image = pygame.image.load("fruit.png")
+        # Scale to GRID_SIZE x GRID_SIZE
+        fruit_image = pygame.transform.scale(fruit_image, (GRID_SIZE, GRID_SIZE))
+        print(f"DEBUG: shared_constants.py - fruit.png loaded successfully, size: {fruit_image.get_size()}")
+        return fruit_image
+    except Exception as e:
+        print(f"DEBUG: shared_constants.py - Failed to load fruit.png: {e}")
+        print("DEBUG: shared_constants.py - Will use white rectangle as fallback")
+        return None
+
 # Load images with simple error handling
+print("DEBUG: shared_constants.py - Starting to load all images")
 game_bg = load_image_simple('background.png')
 start_menu_bg = load_image_simple('SpotipyStart.png')
+print("DEBUG: shared_constants.py - About to load fruit image")
+fruit_image = load_fruit_image()
+print(f"DEBUG: shared_constants.py - Fruit image loaded: {fruit_image is not None}")
