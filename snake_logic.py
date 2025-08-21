@@ -139,6 +139,10 @@ async def start_game(screen):
         song_display_state["easter_egg_primed"] = is_ee_primed
         print(f"DEBUG: snake_logic.py - Song updated: {track_name} by {track_artist}")
 
+    # Show simple loading message
+    from spotipy_handling import show_loading_screen
+    await show_loading_screen(screen, f"Loading {album_result['name']}...", 1.5)
+    
     song_display_state["name"] = "Loading first game song..."
     song_display_state["artist"] = ""
     print("DEBUG: snake_logic.py - Starting first track")
@@ -178,10 +182,16 @@ async def start_game(screen):
     print(f"DEBUG: snake_logic.py - Album pieces keys: {list(album_pieces.keys())[:5]}...")  # Show first 5 keys
 
     snake_pos = [width // 2, height // 2]
+    # Initialize snake body to start at center and extend left (since initial direction is RIGHT)
     snake_body = [[snake_pos[0] - i * GRID_SIZE, snake_pos[1]] for i in range(5)]
     direction = 'RIGHT'
     change_to = direction
     score = 0
+    
+    # Debug: print snake starting position
+    print(f"DEBUG: snake_logic.py - Snake starting position: {snake_pos}")
+    print(f"DEBUG: snake_logic.py - Snake body: {snake_body}")
+    print(f"DEBUG: snake_logic.py - Initial direction: {direction}")
 
     def random_fruit_pos():
         """Generates a valid random position for a new fruit, avoiding snake body and revealed areas."""

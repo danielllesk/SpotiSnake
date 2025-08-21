@@ -1449,6 +1449,88 @@ async def cleanup():
     except Exception as e:
         print(f"DEBUG: spotipy_handling.py - Exception in cleanup: {e}")
 
+async def show_loading_screen(screen, message="Searching for albums...", duration=3.0):
+    """Shows a loading screen with animated dots for a specified duration."""
+    print(f"DEBUG: spotipy_handling.py - show_loading_screen called: {message}")
+    
+    loading_font = pygame.font.SysFont("Press Start 2P", 25)
+    dots_font = pygame.font.SysFont("Press Start 2P", 30)
+    
+    start_time = time.monotonic()
+    dots = ""
+    dot_timer = 0
+    
+    while time.monotonic() - start_time < duration:
+        current_time = time.monotonic()
+        
+        # Update dots animation
+        dot_timer += 16  # Approximately 60 FPS
+        if dot_timer >= 500:  # Change dots every 500ms
+            if dots == "":
+                dots = "."
+            elif dots == ".":
+                dots = ".."
+            elif dots == "..":
+                dots = "..."
+            else:
+                dots = ""
+            dot_timer = 0
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                print("DEBUG: spotipy_handling.py - QUIT event during loading screen")
+                return "QUIT"
+        
+        # Draw background
+        if game_bg:
+            screen.blit(game_bg, (0, 0))
+        else:
+            screen.fill((30, 30, 30))
+        
+        # Draw loading message
+        loading_text = loading_font.render(message, True, WHITE)
+        loading_rect = loading_text.get_rect(center=(width // 2, height // 2 - 30))
+        screen.blit(loading_text, loading_rect)
+        
+        # Draw animated dots
+        dots_text = dots_font.render(dots, True, LIGHT_BLUE)
+        dots_rect = dots_text.get_rect(center=(width // 2, height // 2 + 10))
+        screen.blit(dots_text, dots_rect)
+        
+        # No progress bar - just simple loading with dots
+        
+        pygame.display.flip()
+        await asyncio.sleep(0.016)  # ~60 FPS
+    
+    print("DEBUG: spotipy_handling.py - Loading screen completed")
+
+async def show_inline_loading(screen, message="Loading...", duration=2.0):
+    """Shows a simple loading message below the search bar."""
+    print(f"DEBUG: spotipy_handling.py - show_inline_loading called: {message}")
+    
+    loading_font = pygame.font.SysFont("Press Start 2P", 16)
+    
+    start_time = time.monotonic()
+    
+    while time.monotonic() - start_time < duration:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                print("DEBUG: spotipy_handling.py - QUIT event during inline loading")
+                return "QUIT"
+        
+        # Don't redraw the background or UI - just add the loading text
+        # The existing search UI should remain visible
+        
+        # Just draw the loading message below the search area
+        loading_text = loading_font.render(message, True, WHITE)
+        loading_rect = loading_text.get_rect(center=(width // 2, 170))
+        screen.blit(loading_text, loading_rect)
+        
+        pygame.display.flip()
+        await asyncio.sleep(0.016)  # ~60 FPS
+    
+    print("DEBUG: spotipy_handling.py - Inline loading completed")
+
 async def get_album_search_input(screen, font):
     print("DEBUG: spotipy_handling.py - get_album_search_input called (START)")
     
@@ -1492,6 +1574,9 @@ async def get_album_search_input(screen, font):
     cursor_visible = True
     cursor_timer = 0
     cursor_blink_rate = 500  # milliseconds
+    
+    # Loading state variable
+    is_searching = False
 
     async def download_album_covers_async():
         """Download album covers asynchronously in the background"""
@@ -1508,6 +1593,16 @@ async def get_album_search_input(screen, font):
 
     async def draw_search_results_local():
         nonlocal album_covers
+        
+        # Show loading message if searching
+        if is_searching:
+            print(f"DEBUG: spotipy_handling.py - Displaying loading message")
+            loading_font = pygame.font.SysFont("Press Start 2P", 20)
+            loading_text = loading_font.render("Searching for album... hang on", True, WHITE)
+            loading_rect = loading_text.get_rect(center=(width // 2, 250))
+            screen.blit(loading_text, loading_rect)
+            return
+        
         if search_results:
             y_offset = results_area.y + 10
             for album in search_results:
@@ -1562,11 +1657,15 @@ async def get_album_search_input(screen, font):
                 artist_surf = artist_font_local.render(album['artist'], True, DARK_GREY)
                 screen.blit(artist_surf, (text_start_x, result_rect.y + 35))
                 y_offset += 80
+        elif is_searching:
+            print("DEBUG: spotipy_handling.py - Drawing search loading message")
+            loading_surf = font.render("Loading (search result)... hang on", True, WHITE)
+            screen.blit(loading_surf, (results_area.x + 10, results_area.y + 10))
         elif text:
-            no_results_surf = font.render("No results. Press Enter to search.", True, WHITE)
+            no_results_surf = font.render("Press Enter to search", True, WHITE)
             screen.blit(no_results_surf, (results_area.x + 10, results_area.y + 10))
         else:
-            no_results_surf = font.render("Type to search. Press Enter.", True, WHITE)
+            no_results_surf = font.render("Press Enter to search", True, WHITE)
             screen.blit(no_results_surf, (results_area.x + 10, results_area.y + 10))
 
     loop_iteration = 0
@@ -1611,12 +1710,42 @@ async def get_album_search_input(screen, font):
                     if event.key == pygame.K_RETURN:
                         if text:
                             print(f"DEBUG: spotipy_handling.py - Searching for: {text}")
+                            
+                            # Set loading state and search
+                            is_searching = True
+                            print("DEBUG: spotipy_handling.py - Loading state set to True")
+                            
+                            # Force a UI update to show loading message
+                            screen.fill((30, 30, 30))
+                            if game_bg:
+                                screen.blit(game_bg, (0, 0))
+                            else:
+                                screen.fill(DARK_GREY)
+                            label_font = pygame.font.SysFont("Press Start 2P", 25)
+                            label = label_font.render("Search for an album:", True, WHITE)
+                            screen.blit(label, (input_box.x, input_box.y - 40))
+                            txt_surface = font.render(text, True, BLACK)
+                            screen.blit(txt_surface, (input_box.x + 5, input_box.y + 5))
+                            pygame.draw.rect(screen, color, input_box, 2)
+                            await draw_search_results_local()
+                            pygame.draw.rect(screen, LIGHT_BLUE, quit_button_rect_local)
+                            quit_text_surf = quit_button_font.render("BACK TO MENU", True, BLACK)
+                            quit_text_rect = quit_text_surf.get_rect(center=quit_button_rect_local.center)
+                            screen.blit(quit_text_surf, quit_text_rect)
+                            pygame.display.flip()
+                            
+                            # Small delay to make loading message visible
+                            await asyncio.sleep(0.3)
+                            
                             # Use backend search
                             search_results = []
                             backend_results = await search_album_via_backend(text)
+                            
                             if backend_results and 'albums' in backend_results and 'items' in backend_results['albums']:
                                 albums_found = len(backend_results['albums']['items'])
-                                for album in backend_results['albums']['items']:
+                                # Limit to only the first 5 albums
+                                albums_to_process = backend_results['albums']['items'][:5]
+                                for album in albums_to_process:
                                     album_data = {
                                         'name': album.get('name', 'Unknown Album'),
                                         'uri': album.get('uri', ''),
@@ -1624,9 +1753,13 @@ async def get_album_search_input(screen, font):
                                         'artist': album.get('artists', [{}])[0].get('name', 'Unknown Artist') if album.get('artists') else 'Unknown Artist'
                                     }
                                     search_results.append(album_data)
-                                print(f"DEBUG: spotipy_handling.py - Found {len(search_results)} albums")
+                                print(f"DEBUG: spotipy_handling.py - Found {albums_found} albums, displaying top 5")
                                 # Clear any old covers - we'll download them on-demand in the drawing function
                                 album_covers.clear()
+                                
+                                # Clear loading state after search completes - covers will download on-demand
+                                is_searching = False
+                                print("DEBUG: spotipy_handling.py - Loading state set to False (search complete)")
                             else:
                                 print(f"DEBUG: spotipy_handling.py - No albums found in search results")
                                 # Create a fallback result if search fails
@@ -1639,6 +1772,10 @@ async def get_album_search_input(screen, font):
                                     }
                                 ]
                                 album_covers.clear()
+                                
+                                # Clear loading state after everything is complete
+                                is_searching = False
+                                print("DEBUG: spotipy_handling.py - Loading state set to False (no results)")
                     elif event.key == pygame.K_BACKSPACE:
                         text = text[:-1]
                         if not text:

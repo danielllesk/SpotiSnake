@@ -322,6 +322,8 @@ async def start_menu():
     except Exception as e:
         print(f"DEBUG: ui.py - Failed to start background music: {e}")
     
+    # Always show main menu, even if already authenticated
+    print("DEBUG: ui.py - Showing main menu")
     await main_menu()
 
 async def main():
