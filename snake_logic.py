@@ -218,7 +218,7 @@ async def start_game(screen):
     
     # Speed progression variables
     current_speed = SNAKE_SPEED  # Start with base speed
-    speed_increment = 1.5  # Increase speed by 1.5 each song change
+    speed_increment = 1.0  # Increase speed by 1.0 each song change
     max_speed = 25  # Maximum speed cap
 
     print("DEBUG: snake_logic.py - Starting main game loop")
@@ -414,13 +414,17 @@ async def winning_screen(screen, score, album_pieces):
 async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, prev_track_artist):
     """Handles the Easter egg event: plays a special song and shows a message."""
     print("DEBUG: snake_logic.py - trigger_easter_egg_sequence called")
+    print(f"DEBUG: snake_logic.py - Previous track: {prev_track_name} by {prev_track_artist}")
 
     played_ee_successfully = await play_track_via_backend(EASTER_EGG_TRACK_URI, 176000)
     
     if not played_ee_successfully:
         print("DEBUG: snake_logic.py - Easter egg track failed to play")
         pass
+    else:
+        print("DEBUG: snake_logic.py - Easter egg track started successfully")
 
+    print("DEBUG: snake_logic.py - Starting easter egg animation sequence")
     easter_egg_start_time = time.monotonic()
     while time.monotonic() - easter_egg_start_time < 3:
         for event in pygame.event.get(): 
@@ -441,6 +445,7 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
         pygame.display.flip()
         await asyncio.sleep(1/30)
         
+    print("DEBUG: snake_logic.py - Creating easter egg message surfaces")
     special_message_font = pygame.font.SysFont('Press Start 2P', 30)
     button_font = pygame.font.SysFont('Press Start 2P', 25)
     message_line0_text = "A thank you from the creator: Daniel Eskandar"
@@ -461,6 +466,7 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
     button_w, button_h = 400, 50
     button_x, button_y = width // 2 - button_w // 2, height // 2 + 80 
     button_rect = pygame.Rect(button_x, button_y, button_w, button_h)
+    print("DEBUG: snake_logic.py - Starting easter egg message loop")
     message_loop = True
     while message_loop:
         for event in pygame.event.get():
@@ -588,7 +594,7 @@ async def start_game_with_album(screen, album_result):
     
     # Speed progression variables
     current_speed = SNAKE_SPEED  # Start with base speed
-    speed_increment = 1.5  # Increase speed by 1.5 each song change
+    speed_increment = 1.0  # Increase speed by 1.0 each song change
     max_speed = 25  # Maximum speed cap
 
     print("DEBUG: snake_logic.py - Starting main game loop for retry")
