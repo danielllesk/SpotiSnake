@@ -523,12 +523,28 @@ def pause():
         logging.debug("DEBUG: backend.py - Failed to create Spotify client for /pause")
         response = jsonify({'error': 'Not authenticated - invalid token'}), 401
         return add_cors_headers(response[0])
+    
     device_id = request.json.get('device_id')
     logging.debug(f"DEBUG: backend.py - Pausing device: {device_id}")
-    sp.pause_playback(device_id=device_id)
-    logging.debug("DEBUG: backend.py - Playback paused successfully")
-    response = jsonify({'status': 'paused'})
-    return add_cors_headers(response)
+    
+    try:
+        sp.pause_playback(device_id=device_id)
+        logging.debug("DEBUG: backend.py - Playback paused successfully")
+        response = jsonify({'status': 'paused'})
+        return add_cors_headers(response)
+    except spotipy.exceptions.SpotifyException as e:
+        logging.error(f"DEBUG: backend.py - Spotify pause error: {e}")
+        if e.http_status == 403:
+            logging.debug("DEBUG: backend.py - 403 error - likely no active device or restriction")
+            response = jsonify({'status': 'no_active_device', 'message': 'No active device to pause'})
+            return add_cors_headers(response)
+        else:
+            response = jsonify({'error': f'Spotify API error: {e}'}), e.http_status
+            return add_cors_headers(response[0])
+    except Exception as e:
+        logging.error(f"DEBUG: backend.py - Unexpected error in pause: {e}")
+        response = jsonify({'error': f'Unexpected error: {e}'}), 500
+        return add_cors_headers(response[0])
 
 @app.route('/devices')
 def devices():
