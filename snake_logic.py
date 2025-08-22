@@ -167,11 +167,51 @@ async def start_game(screen):
     except Exception as e:
         print(f"DEBUG: snake_logic.py - Error resetting first_song_played flag: {e}")
     
-    # Get album tracks and play a random one
-    from spotipy_handling import play_random_track_from_album
-    print(f"DEBUG: snake_logic.py - Playing random track from album: {album_result['uri']}")
+    # Get album tracks and play a random one - with confirmation
+    from spotipy_handling import play_random_track_from_album, verify_album_playability
+    print(f"DEBUG: snake_logic.py - Verifying album playability: {album_result['uri']}")
+    
+    # First, verify we can access album tracks
+    # Add a small delay to ensure session is established
+    print("DEBUG: snake_logic.py - Waiting for session to stabilize...")
+    await asyncio.sleep(0.5)
+    
+    album_playable = await verify_album_playability(album_result['uri'])
+    if not album_playable:
+        print("DEBUG: snake_logic.py - Album not playable, returning to search")
+        # Show error message briefly
+        await show_loading_screen(screen, f"Error: Cannot play {album_result['name']}", 2.0)
+        await show_loading_screen(screen, "Returning to album search...", 1.0)
+        await start_game(screen)
+        return
+    
+    print(f"DEBUG: snake_logic.py - Album verified playable, starting first track")
     await play_random_track_from_album(album_result['uri'], update_song_display_from_callback)
-    print("DEBUG: snake_logic.py - First track started")
+    
+    # Wait a moment and verify the song actually started
+    await asyncio.sleep(1.5)  # Give more time for the track to start
+    
+    # Check if the song display indicates a successful start
+    failed_states = [
+        "Loading first game song...", 
+        "Error", 
+        "No Tracks", 
+        "Authentication Required",
+        "Failed to Start",
+        "Album Error",
+        "Error Loading Album"
+    ]
+    
+    if song_display_state["name"] in failed_states:
+        print(f"DEBUG: snake_logic.py - First track failed to start. Current state: {song_display_state['name']}")
+        await show_loading_screen(screen, "Error: Failed to start music", 2.0)
+        await show_loading_screen(screen, "Returning to album search...", 1.0)
+        await start_game(screen)
+        return
+    
+    print(f"DEBUG: snake_logic.py - Song confirmed playing: {song_display_state['name']}")
+    
+    print("DEBUG: snake_logic.py - First track confirmed started")
 
     album_pieces = cut_image_into_pieces(album_cover_surface, ALBUM_GRID_SIZE, ALBUM_GRID_SIZE)
     revealed_pieces = set()
