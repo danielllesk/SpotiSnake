@@ -1,69 +1,134 @@
 # 🎵 SpotiSnake
 
-**SpotiSnake** is a new way to enjoy your album listening experience.
-it's a twist on the classic Snake game, and slight inspiration from the "eat your playlist" feature on spotify ;)
-Eat album cover "fruit" tiles, piece together a full album, and listen to real-time music as you play.
----
+**SpotiSnake** is an innovative fusion of the classic Snake game and Spotify album listening. Eat apples, and reveal the full artwork, and enjoy real-time music as you play!
 
-## 🐍 How It Works
+## 🎮 Game Overview
 
-- Choose a **Spotify album** at the start of the game, preferrable something with cool album art.
-- Play as a snake that eats randomly scattered pieces of the album cover.
-- As you eat, each tile gets "locked in" onto the background, slowly revealing the full album.
-- After 5 blocks, a new random track from the album plays in the background. When it changes, the game updates accordingly.
-- If a secret **easter egg track** plays, you’ll get a special message. Message me if you get it👀
-- Want to challenge friends? **Send me the albums you ate!**
+SpotiSnake transforms your favorite albums into an interactive gaming experience:
+
+- **🎯 Choose Your Album**: Search and select any Spotify album with cool artwork
+- **🐍 Play as Snake**: Navigate and eat scattered pieces of fruit
+- **🖼️ Reveal Artwork**: Each apple you eat reveals a piece of the album cover of the album you chose 
+- **🎵 Dynamic Music**: New tracks play every 5 apples eaten, with progressive speed
+- **🥚 Hidden Easter Egg**: Discover a secret track for a special surprise!
 
 ---
 
-## ⚙️ Tech Stack
+## 🎯 How to Play
 
-| Component            | Tech Used                                     |
-|---------------------|-----------------------------------------------|
-| Game Engine          | [`pygame`](https://www.pygame.org/)          |
-| Spotify API          | [`spotipy`](https://spotipy.readthedocs.io/) |
-| OAuth2 Auth Flow     | `SpotifyOAuth` for secure access              |
-| Async Handling       | `asyncio` + `aiohttp` for smoother music control (non-blocking) |
-| Multi-threading (initially) | Used `concurrent.futures.ThreadPoolExecutor`, now adapted for browser compatibility |
-| Web Portability      | Designed for conversion with WebAssembly & Pyodide |
+1. **Login**: Click "Login with Spotify" and authorize the app
+2. **Search**: Type an album name and select from results
+3. **Play**: Use arrow keys to move the snake
+4. **Eat**: Collect album pieces to reveal the artwork
+5. **Listen**: Enjoy music that changes every 5 pieces
+6. **Win**: Complete the album or achieve high scores!
 
 ---
 
-## 📦 Project Structure (Sample)
+## 🏗️ Architecture
 
-```
-SpotiSnake/
-├── main.py               # Main game loop
-├── ui.py                 # Start menu, buttons, and event handling
-├── snake_logic.py        # Snake movement, collision, and gameplay
-├── spotify_handler.py    # Album fetching, authentication, and playback
-└── README.md
-```
+### Core Components
+- **`main.py`**: Application entry point and initialization
+- **`ui.py`**: User interface, menus, and navigation
+- **`snake_logic.py`**: Game mechanics, collision detection, and scoring
+- **`spotipy_handling.py`**: Spotify API integration and music control
+- **`backend.py`**: Flask server for API proxying and authentication
+- **`shared_constants.py`**: Global constants, colors, and configuration
 
+### Tech Stack
+| Component | Technology | Purpose |
+|-----------|------------|---------|
+| **Game Engine** | Pygame | Graphics, input handling, game loop |
+| **Music API** | Spotipy | Spotify integration and playback control |
+| **Authentication** | OAuth2 | Secure Spotify login |
+| **Web Support** | Pygbag/Pyodide | Browser compatibility |
+| **Backend** | Flask | API proxying and session management |
+| **Async Operations** | asyncio | Non-blocking music control |
+
+---
+
+## 🎨 Features
+
+### Core Gameplay
+- **Progressive Difficulty**: Snake speed increases with score
+- **Dynamic Music**: Seamless track transitions every 5 pieces
+- **Visual Feedback**: Real-time album artwork revelation
+- **Score Tracking**: Persistent scoring system
+
+### Music Integration
+- **Real-time Playback**: Direct Spotify control
+- **Album Search**: Full Spotify catalog access
+- **Track Randomization**: Varied listening experience
+- **Volume Control**: Automatic music management
+
+### User Experience
+- **Responsive UI**: Clean, intuitive interface
+- **Error Handling**: Graceful failure recovery
+- **Cross-platform**: Works on desktop and web
+- **Session Management**: Persistent login state
+
+---
+
+## 🐛 Troubleshooting
+
+### Common Issues
+
+**Music not playing:**
+- Ensure Spotify app is running
+- Check Premium subscription status, may or may not be an issue upon deployment
+- Try to get 5 pieces, sometimes the API takes a second to handle your request 
 ---
 
 ## 🎁 Easter Egg
 
-A very specific track, when played, will trigger a **special hidden message** in-game.
-
-No hints — discover it for yourself.
+A very specific track triggers a **hidden message** in-game and automatically wins you a game. No hints — discover it yourself! 🥚
 
 ---
 
-## 📬 Share Your Wins!
+## 🤝 Contributing
 
-Finished an album? Snaked your way through some obscure indie record?  
-**Send me the albums you ate** — I'd love to see what you've built (or uncovered)!
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+
+### Development Setup
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
 
 ---
 
-## Current Stage
-- Web deployment, and code cleanup as of right now (currently available to download for mac users at https://danielllesk.itch.io/spotisnake but am working on a browser playable version)
+## 📄 License
 
-## 🧠 Future Ideas
-- Multiplayer snake battle mode (battle of the albums)
-- Album progress saving and leaderboard
-- Integration with lyrics or track popularity stats
-- Visual filters for dark album covers
-- Standalone app/website where users create accounts, connect with friends, see what albums they are eating
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 📞 Want to contact me for any reason, could even just be a game suggestion, could be to tell me how your day is going I'm open 
+
+- **Email**: danielesk6@gmail.com
+- **Username for almost any app**: danielllesk
+
+---
+
+## 🚀 Roadmap
+
+### Upcoming Features
+- [ ] Multiplayer battle mode
+- [ ] Album progress saving
+- [ ] Leaderboards and achievements
+- [ ] Lyrics integration
+- [ ] Mobile app version
+- [ ] Social features and sharing
+
+### Current Status
+- ✅ Core gameplay complete
+- ✅ Spotify integration working
+- ✅ Web deployment ready
+- 🔄 Performance optimization
+- 🔄 Additional game modes
+
+---
+
+**Made with ❤️ for music lovers and gamers everywhere**
 
