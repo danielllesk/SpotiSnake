@@ -1097,10 +1097,11 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
     # Skip the session test and delays - go straight to album tracks
     print(f"DEBUG: spotipy_handling.py - Skipping session test and delays for faster loading")
     
-    # Test backend connectivity first
-    print(f"DEBUG: spotipy_handling.py - Testing backend connectivity")
+    # Test backend connectivity and session first
+    print(f"DEBUG: spotipy_handling.py - Testing backend connectivity and session")
     try:
         test_js_code = f'''
+        // Test ping first
         fetch("{BACKEND_URL}/ping", {{
             method: "GET",
             credentials: "include"
@@ -1112,22 +1113,72 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
         .then(text => {{
             console.log("JS: Ping response:", text);
             window.ping_result = {{ status: 200, text: text }};
+            
+            // Then test session
+            return fetch("{BACKEND_URL}/test_session", {{
+                method: "GET",
+                credentials: "include"
+            }});
+        }})
+        .then(response => {{
+            console.log("JS: Session test response status:", response.status);
+            return response.text();
+        }})
+        .then(text => {{
+            console.log("JS: Session test response:", text);
+            window.session_result = {{ status: 200, text: text }};
         }})
         .catch(error => {{
-            console.log("JS: Ping error:", error);
+            console.log("JS: Test error:", error);
             window.ping_result = {{ status: 500, error: error.toString() }};
         }});
         '''
         js.eval(test_js_code)
-        await asyncio.sleep(0.2)
+        await asyncio.sleep(0.3)
         
         if hasattr(js.window, 'ping_result'):
             ping_result = js.window.ping_result
             print(f"DEBUG: spotipy_handling.py - Backend ping result: {ping_result}")
+        
+        if hasattr(js.window, 'session_result'):
+            session_result = js.window.session_result
+            print(f"DEBUG: spotipy_handling.py - Session test result: {session_result}")
+            print(f"DEBUG: spotipy_handling.py - Session result type: {type(session_result)}")
+            
+            # Try to get more details from the session result
+            if isinstance(session_result, dict):
+                session_text = session_result.get('text', 'No text')
+                print(f"DEBUG: spotipy_handling.py - Session test text: {session_text}")
+                try:
+                    session_data = json.loads(session_text)
+                    print(f"DEBUG: spotipy_handling.py - Session data: {session_data}")
+                    has_token = session_data.get('has_token', False)
+                    print(f"DEBUG: spotipy_handling.py - Session has token: {has_token}")
+                except json.JSONDecodeError:
+                    print(f"DEBUG: spotipy_handling.py - Could not parse session text as JSON")
+            else:
+                print(f"DEBUG: spotipy_handling.py - Session result is not a dict, it's: {type(session_result)}")
+                # Try to access properties directly from browser object
+                try:
+                    session_text = getattr(session_result, 'text', 'No text')
+                    print(f"DEBUG: spotipy_handling.py - Session test text (direct): {session_text}")
+                    session_status = getattr(session_result, 'status', 'No status')
+                    print(f"DEBUG: spotipy_handling.py - Session test status (direct): {session_status}")
+                    
+                    if session_text and session_text != 'No text':
+                        try:
+                            session_data = json.loads(session_text)
+                            print(f"DEBUG: spotipy_handling.py - Session data (direct): {session_data}")
+                            has_token = session_data.get('has_token', False)
+                            print(f"DEBUG: spotipy_handling.py - Session has token (direct): {has_token}")
+                        except json.JSONDecodeError:
+                            print(f"DEBUG: spotipy_handling.py - Could not parse session text as JSON (direct)")
+                except Exception as e:
+                    print(f"DEBUG: spotipy_handling.py - Could not access session result properties: {e}")
         else:
-            print(f"DEBUG: spotipy_handling.py - No ping result received")
+            print(f"DEBUG: spotipy_handling.py - No session result received")
     except Exception as e:
-        print(f"DEBUG: spotipy_handling.py - Backend ping test failed: {e}")
+        print(f"DEBUG: spotipy_handling.py - Backend test failed: {e}")
     
     # For the first song, try to play the album directly first to ensure immediate playback
     # This avoids the API call delay that might be causing the first song not to play
@@ -1139,7 +1190,7 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
             play_result = await play_track_via_backend(album_uri, 0)
             if play_result:
                 print("DEBUG: spotipy_handling.py - Successfully started playing album for first song")
-                song_info_updater_callback("Album Playing", "Random Track", False)
+                song_info_updater_callback("Playing Album", "Random Track", False)
                 # Mark that we've played the first song
                 setattr(js.window, 'first_song_played', True)
                 return
@@ -1154,12 +1205,14 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
     # Use async approach with js.eval for getting album tracks
     
     js_code = f'''
+    console.log("JS: ===== ALBUM TRACKS FETCH START =====");
     console.log("JS: Fetching album tracks for album_id:", "{album_id}");
     console.log("JS: Backend URL:", "{BACKEND_URL}");
     console.log("JS: Full URL:", "{BACKEND_URL}/album_tracks?album_id={album_id}");
     
     // Clear any existing result first
     window.album_tracks_sync_result = null;
+    console.log("JS: Cleared previous result");
     
     // First, let's check what cookies we have
     console.log("JS: Current cookies:", document.cookie);
@@ -1177,15 +1230,28 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
         console.log("JS: Album tracks response status:", response.status);
         console.log("JS: Album tracks response ok:", response.ok);
         console.log("JS: Album tracks response headers:", response.headers);
+        
+        if (!response.ok) {{
+            console.log("JS: Response not ok, getting error text");
+            return response.text().then(text => {{
+                console.log("JS: Error response text:", text);
+                window.album_tracks_sync_result = {{ status: response.status, text: text }};
+                throw new Error("Response not ok");
+            }});
+        }}
+        
         return response.text();
     }})
     .then(text => {{
-        console.log("JS: Album tracks response text:", text.substring(0, 200) + "...");
+        console.log("JS: Album tracks response text length:", text.length);
+        console.log("JS: Album tracks response text preview:", text.substring(0, 200));
+        
         if (text.trim().startsWith('{{')) {{
             // Looks like JSON, parse it to check status
             try {{
                 const data = JSON.parse(text);
                 console.log("JS: Parsed JSON status:", data.status || 'no status');
+                console.log("JS: Parsed JSON keys:", Object.keys(data));
                 window.album_tracks_sync_result = {{ status: data.status || 200, text: text }};
             }} catch(e) {{
                 console.log("JS: JSON parse error:", e);
@@ -1195,20 +1261,38 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
             console.log("JS: Response doesn't look like JSON");
             window.album_tracks_sync_result = {{ status: 500, text: text }};
         }}
+        
+        console.log("JS: Result stored in window:", window.album_tracks_sync_result);
     }})
     .catch(error => {{
         console.log("JS: Album tracks fetch error:", error);
-        window.album_tracks_sync_result = {{ status: 500, error: error.toString() }};
+        console.log("JS: Error message:", error.message);
+        
+        if (!window.album_tracks_sync_result) {{
+            window.album_tracks_sync_result = {{ status: 500, error: error.toString() }};
+        }}
+        
+        console.log("JS: Final result in window:", window.album_tracks_sync_result);
     }});
     '''
     
     try:
         js.eval(js_code)
-        await asyncio.sleep(0.3)  # Wait longer for the fetch to complete
+        print(f"DEBUG: spotipy_handling.py - JavaScript code executed, waiting for result...")
+        await asyncio.sleep(0.5)  # Wait longer for the fetch to complete
+        
+        # Check if result is available
+        if hasattr(js.window, 'album_tracks_sync_result'):
+            print(f"DEBUG: spotipy_handling.py - Result found after 0.5s")
+        else:
+            print(f"DEBUG: spotipy_handling.py - No result after 0.5s, waiting more...")
+            await asyncio.sleep(0.3)  # Wait a bit more
         
         tracks_data = None
         if hasattr(js.window, 'album_tracks_sync_result'):
             result = js.window.album_tracks_sync_result
+            print(f"DEBUG: spotipy_handling.py - Album tracks result type: {type(result)}")
+            print(f"DEBUG: spotipy_handling.py - Album tracks result: {result}")
             
             # Handle both object and string cases
             if isinstance(result, dict):
@@ -1225,22 +1309,34 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
                     print(f"DEBUG: spotipy_handling.py - Error text: {error_text}")
                     print(f"DEBUG: spotipy_handling.py - Error field: {error_error}")
                     print(f"DEBUG: spotipy_handling.py - Full error response: {result}")
-                    
-                    # Try to parse the error text as JSON to get more details
+                    print(f"DEBUG: spotipy_handling.py - Result type: {type(result)}")
+                    print(f"DEBUG: spotipy_handling.py - Result keys: {list(result.keys()) if isinstance(result, dict) else 'Not a dict'}")
+                
+                # Try to parse the error text to get more details
+                if error_text and error_text.strip().startswith('{'):
                     try:
-                        if error_text and error_text.strip().startswith('{'):
-                            error_data = json.loads(error_text)
-                            print(f"DEBUG: spotipy_handling.py - Parsed error data: {error_data}")
-                            # Check if it's a Spotify API error
-                            if 'msg' in error_data:
-                                print(f"DEBUG: spotipy_handling.py - Spotify API error message: {error_data['msg']}")
-                            if 'status' in error_data:
-                                print(f"DEBUG: spotipy_handling.py - Spotify API status: {error_data['status']}")
-                        else:
-                            print(f"DEBUG: spotipy_handling.py - Error text is not JSON: '{error_text[:200]}...'")
-                    except Exception as parse_error:
-                        print(f"DEBUG: spotipy_handling.py - Failed to parse error text: {parse_error}")
-                        print(f"DEBUG: spotipy_handling.py - Raw error text: '{error_text[:200]}...'")
+                        error_data = json.loads(error_text)
+                        print(f"DEBUG: spotipy_handling.py - Parsed error data: {error_data}")
+                        if 'msg' in error_data:
+                            print(f"DEBUG: spotipy_handling.py - Spotify error message: {error_data['msg']}")
+                        if 'status' in error_data:
+                            print(f"DEBUG: spotipy_handling.py - Spotify API status: {error_data['status']}")
+                    except json.JSONDecodeError:
+                        print(f"DEBUG: spotipy_handling.py - Could not parse error text as JSON")
+                else:
+                    print(f"DEBUG: spotipy_handling.py - Error text is not JSON: '{error_text[:200]}...'")
+                    
+                # Also try to access properties directly if it's a browser object
+                if not isinstance(result, dict):
+                    try:
+                        direct_status = getattr(result, 'status', 'No direct status')
+                        direct_text = getattr(result, 'text', 'No direct text')
+                        direct_error = getattr(result, 'error', 'No direct error')
+                        print(f"DEBUG: spotipy_handling.py - Direct status: {direct_status}")
+                        print(f"DEBUG: spotipy_handling.py - Direct text: {direct_text}")
+                        print(f"DEBUG: spotipy_handling.py - Direct error: {direct_error}")
+                    except Exception as e:
+                        print(f"DEBUG: spotipy_handling.py - Could not access direct properties: {e}")
             elif isinstance(result, str):
                 # If it's a string, try to parse it as JSON
                 try:
@@ -1376,16 +1472,16 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
                         
                         # Extract album name from the album_id if possible
                         # For now, we'll use a more descriptive message
-                        song_info_updater_callback(f"Playing Album", f"Random Track (API Fallback)", False)
+                        song_info_updater_callback(f"Playing Album", f"Random Track (Limited Info)", False)
                         return
                     else:
                         print("DEBUG: spotipy_handling.py - Failed to play album directly")
-                        song_info_updater_callback("No Tracks In Album", "N/A", False)
+                        song_info_updater_callback("Album Unavailable", "Try Another Album", False)
                         return
                 except Exception as e:
                     print(f"DEBUG: spotipy_handling.py - Error playing album directly: {e}")
                     print("DEBUG: spotipy_handling.py - Providing fallback song info")
-                    song_info_updater_callback("Album Loading...", "Please wait", False)
+                    song_info_updater_callback("Album Loading...", "Please Wait", False)
                     return
         
         # Ensure proper randomization
@@ -1411,14 +1507,16 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
         # Use async approach for playing track
         played_successfully = await play_track_via_backend(chosen_track_uri, position_ms)
         if played_successfully:
+            print(f"DEBUG: spotipy_handling.py - Successfully started playing: {track_name}")
             song_info_updater_callback(track_name, track_artist, is_easter_egg_track_selected)
         else:
-            song_info_updater_callback(track_name, f"(Failed: {track_artist})", False)
+            print(f"DEBUG: spotipy_handling.py - Failed to start playing: {track_name}")
+            song_info_updater_callback("Failed to Start", "Check Spotify App", False)
     except Exception as e:
         print(f"DEBUG: spotipy_handling.py - Error in play_random_track_from_album: {e}")
         import traceback
         traceback.print_exc()
-        song_info_updater_callback("Error Loading Album", "N/A", False)
+        song_info_updater_callback("Album Error", "Try Again Later", False)
 
 async def safe_pause_playback():
     print("DEBUG: spotipy_handling.py - safe_pause_playback called")
@@ -2249,26 +2347,88 @@ async def get_current_playback_via_backend():
         return None
 
 # Browser-safe: get album tracks via backend
+async def verify_album_playability(album_uri):
+    """Verify that an album is playable by testing access to its tracks"""
+    print(f"DEBUG: spotipy_handling.py - verify_album_playability called with: {album_uri}")
+    
+    # Extract album ID from URI
+    if album_uri.startswith('spotify:album:'):
+        album_id = album_uri.replace('spotify:album:', '')
+    else:
+        album_id = album_uri
+    
+    print(f"DEBUG: spotipy_handling.py - Testing playability for album ID: {album_id}")
+    
+    # Test if we can get album tracks with retry mechanism
+    max_retries = 3
+    for attempt in range(max_retries):
+        print(f"DEBUG: spotipy_handling.py - Album tracks attempt {attempt + 1}/{max_retries}")
+        
+        tracks_data = await get_album_tracks_via_backend(album_id)
+        
+        if tracks_data and 'items' in tracks_data:
+            tracks = tracks_data.get('items', [])
+            if tracks:
+                print(f"DEBUG: spotipy_handling.py - Album {album_id} verified playable with {len(tracks)} tracks")
+                return True
+            else:
+                print(f"DEBUG: spotipy_handling.py - Album {album_id} has no tracks")
+                return False
+        else:
+            print(f"DEBUG: spotipy_handling.py - Album {album_id} attempt {attempt + 1} failed, tracks_data: {tracks_data}")
+            
+            if attempt < max_retries - 1:
+                # Wait with exponential backoff before retry
+                wait_time = 2 ** attempt  # 1, 2, 4 seconds
+                print(f"DEBUG: spotipy_handling.py - Waiting {wait_time} seconds before retry...")
+                await asyncio.sleep(wait_time)
+            else:
+                print(f"DEBUG: spotipy_handling.py - Album {album_id} failed all {max_retries} attempts")
+                return False
+    
+    return False
+
 async def get_album_tracks_via_backend(album_id):
     import js
     import json
     url = f"{BACKEND_URL}/album_tracks?album_id={album_id}"
     
     js_code = f'''
+    console.log("JS: Fetching album tracks for album_id:", "{album_id}");
+    console.log("JS: Full URL:", "{url}");
+    
     fetch("{url}", {{
         method: "GET",
-        credentials: "include"
+        credentials: "include",
+        headers: {{
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }}
     }})
     .then(response => {{
-        console.log("Album tracks response status:", response.status);
+        console.log("JS: Album tracks response status:", response.status);
+        console.log("JS: Album tracks response ok:", response.ok);
         return response.text();
     }})
     .then(text => {{
-        console.log("Album tracks response text:", text);
-        window.album_tracks_result = {{ status: 200, text: text }};
+        console.log("JS: Album tracks response text (first 200 chars):", text.substring(0, 200));
+        if (text.trim().startsWith('{{')) {{
+            // Looks like JSON, parse it to check status
+            try {{
+                const data = JSON.parse(text);
+                console.log("JS: Parsed JSON status:", data.status || 'no status');
+                window.album_tracks_result = {{ status: data.status || 200, text: text }};
+            }} catch(e) {{
+                console.log("JS: JSON parse error:", e);
+                window.album_tracks_result = {{ status: 500, text: text }};
+            }}
+        }} else {{
+            console.log("JS: Response doesn't look like JSON");
+            window.album_tracks_result = {{ status: 500, text: text }};
+        }}
     }})
     .catch(error => {{
-        console.log("Album tracks error:", error);
+        console.log("JS: Album tracks fetch error:", error);
         window.album_tracks_result = {{ status: 500, error: error.toString() }};
     }});
     '''
@@ -2276,31 +2436,49 @@ async def get_album_tracks_via_backend(album_id):
     try:
         js.eval(js_code)
         import asyncio
-        await asyncio.sleep(0.1)
         
-        if hasattr(js.window, 'album_tracks_result'):
-            result = js.window.album_tracks_result
-            print(f"DEBUG: spotipy_handling.py - Album tracks result: {result}")
-            # Handle both object and string cases
-            if isinstance(result, dict):
-                if result.get('status') == 200:
-                    return json.loads(result.get('text', '{}'))
-            elif isinstance(result, str):
-                # If it's a string, try to parse it as JSON
-                try:
-                    parsed_result = json.loads(result)
-                    return parsed_result
-                except:
-                    return None
-            else:
-                # If it's an object, try to access properties directly
-                try:
-                    status = getattr(result, 'status', 500)
-                    if status == 200:
-                        text = getattr(result, 'text', '{}')
-                        return json.loads(text)
-                except:
-                    return None
+        # Wait longer for the fetch to complete, especially on first call
+        await asyncio.sleep(0.5)
+        
+        # Check multiple times for the result
+        max_checks = 3
+        for check in range(max_checks):
+            if hasattr(js.window, 'album_tracks_result'):
+                result = js.window.album_tracks_result
+                print(f"DEBUG: spotipy_handling.py - Album tracks result (check {check + 1}): {result}")
+                
+                # Handle both object and string cases
+                if isinstance(result, dict):
+                    if result.get('status') == 200:
+                        try:
+                            return json.loads(result.get('text', '{}'))
+                        except json.JSONDecodeError as e:
+                            print(f"DEBUG: spotipy_handling.py - JSON decode error: {e}")
+                            return None
+                elif isinstance(result, str):
+                    # If it's a string, try to parse it as JSON
+                    try:
+                        parsed_result = json.loads(result)
+                        return parsed_result
+                    except json.JSONDecodeError as e:
+                        print(f"DEBUG: spotipy_handling.py - String JSON decode error: {e}")
+                        return None
+                else:
+                    # If it's an object, try to access properties directly
+                    try:
+                        status = getattr(result, 'status', 500)
+                        if status == 200:
+                            text = getattr(result, 'text', '{}')
+                            return json.loads(text)
+                    except Exception as e:
+                        print(f"DEBUG: spotipy_handling.py - Object property access error: {e}")
+                        return None
+            
+            if check < max_checks - 1:
+                print(f"DEBUG: spotipy_handling.py - No result yet, waiting... (check {check + 1})")
+                await asyncio.sleep(0.3)
+        
+        print("DEBUG: spotipy_handling.py - No album tracks result after all checks")
         return None
     except Exception as e:
         print(f"DEBUG: spotipy_handling.py - Error in get_album_tracks_via_backend: {e}")
