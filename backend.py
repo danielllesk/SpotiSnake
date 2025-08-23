@@ -311,6 +311,9 @@ def callback():
 @app.route('/me')
 def me():
     logging.debug("DEBUG: backend.py - /me endpoint called")
+    logging.debug(f"DEBUG: backend.py - Session ID: {session.sid if hasattr(session, 'sid') else 'No SID'}")
+    logging.debug(f"DEBUG: backend.py - Session contents: {dict(session)}")
+    logging.debug(f"DEBUG: backend.py - Request cookies: {dict(request.cookies)}")
     
     # Check session first
     token_info = session.get('token_info')
