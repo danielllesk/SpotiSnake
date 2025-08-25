@@ -139,11 +139,12 @@ async def start_game(screen):
         song_display_state["artist"] = track_artist
         song_display_state["easter_egg_primed"] = is_ee_primed
         print(f"DEBUG: snake_logic.py - Song updated: {track_name} by {track_artist}")
+        print(f"DEBUG: snake_logic.py - Easter egg primed: {is_ee_primed}")
 
     # Show simple loading message
     from spotipy_handling import show_loading_screen
     await show_loading_screen(screen, f"Loading {album_result['name']}...", 1.5)
-    
+
     song_display_state["name"] = "Loading first game song..."
     song_display_state["artist"] = ""
     print("DEBUG: snake_logic.py - Starting first track")
@@ -204,10 +205,16 @@ async def start_game(screen):
     
     if song_display_state["name"] in failed_states:
         print(f"DEBUG: snake_logic.py - First track failed to start. Current state: {song_display_state['name']}")
-        await show_loading_screen(screen, "Error: Failed to start music", 2.0)
-        await show_loading_screen(screen, "Returning to album search...", 1.0)
-        await start_game(screen)
-        return
+        if "Authentication Required" in song_display_state["name"]:
+            await show_loading_screen(screen, "Authentication expired. Please login again.", 2.0)
+            await show_loading_screen(screen, "Returning to login...", 1.0)
+            await start_menu()
+            return
+        else:
+            await show_loading_screen(screen, "Error: Failed to start music", 2.0)
+            await show_loading_screen(screen, "Returning to album search...", 1.0)
+            await start_game(screen)
+            return
     
     print(f"DEBUG: snake_logic.py - Song confirmed playing: {song_display_state['name']}")
     
@@ -308,6 +315,7 @@ async def start_game(screen):
 
             if song_display_state["easter_egg_primed"]:
                 print("DEBUG: snake_logic.py - Easter egg triggered!")
+                print(f"DEBUG: snake_logic.py - Current song: {song_display_state['name']} by {song_display_state['artist']}")
                 await trigger_easter_egg_sequence(screen, album_pieces, song_display_state["name"], song_display_state["artist"])
                 return
 
@@ -360,7 +368,7 @@ async def start_game(screen):
             # Draw the fruit image with pulse effect
             fruit_surface = pygame.transform.scale(fruit_image, (GRID_SIZE + pulse, GRID_SIZE + pulse))
             screen.blit(fruit_surface, (fruit_pos[0] - pulse//2, fruit_pos[1] - pulse//2))
-        else:
+        else: 
             pygame.draw.rect(screen, WHITE, 
                            pygame.Rect(fruit_pos[0] - pulse//2, fruit_pos[1] - pulse//2, 
                                      GRID_SIZE + pulse, GRID_SIZE + pulse))

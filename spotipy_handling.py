@@ -119,7 +119,7 @@ def backend_login():
             print("DEBUG: spotipy_handling.py - Opened login URL in desktop browser (webbrowser.open)")
         except Exception as e:
             print(f"DEBUG: spotipy_handling.py - Error opening browser: {e}")
-            is_logging_in = False
+    is_logging_in = False
 
 def is_pyodide():
     """Check if we're running in a browser environment (pygbag/pyodide)"""
@@ -213,6 +213,7 @@ async def check_authenticated():
     }})
     .then(result => {{
         console.log("JS: /me response text:", result.text);
+        console.log("JS: /me response status:", result.status);
         window.auth_check_result = result;
     }})
     .catch(error => {{
@@ -240,6 +241,13 @@ async def check_authenticated():
                         return True
                     else:
                         print(f"DEBUG: spotipy_handling.py - Auth check failed with status: {status}")
+                        # Try to get the error text
+                        try:
+                            if hasattr(result, 'text'):
+                                error_text = result.text
+                                print(f"DEBUG: spotipy_handling.py - Error response text: {error_text}")
+                        except:
+                            pass
                         return False
                 elif isinstance(result, dict):
                     status = result.get('status', 500)
@@ -1269,7 +1277,7 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
         console.log("JS: Error message:", error.message);
         
         if (!window.album_tracks_sync_result) {{
-            window.album_tracks_sync_result = {{ status: 500, error: error.toString() }};
+        window.album_tracks_sync_result = {{ status: 500, error: error.toString() }};
         }}
         
         console.log("JS: Final result in window:", window.album_tracks_sync_result);
@@ -1447,9 +1455,13 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
                                         duration_ms = track.get('duration_ms', 0)
                                         max_position = max(0, duration_ms - 30000)  # 30 seconds before end
                                         position_ms = random.randint(0, max_position)
+                                        is_easter_egg_track_selected = (track_uri == EASTER_EGG_TRACK_URI)
                                         print(f"DEBUG: spotipy_handling.py - Playing cached fallback track: {track_name} by {artist_name} at {position_ms}ms")
+                                        print(f"DEBUG: spotipy_handling.py - Track URI: {track_uri}")
+                                        print(f"DEBUG: spotipy_handling.py - Easter egg URI: {EASTER_EGG_TRACK_URI}")
+                                        print(f"DEBUG: spotipy_handling.py - Is easter egg track: {is_easter_egg_track_selected}")
                                         await play_track_via_backend(track_uri, position_ms)
-                                        song_info_updater_callback(track_name, artist_name, False)
+                                        song_info_updater_callback(track_name, artist_name, is_easter_egg_track_selected)
                                         return
                     except Exception as e:
                         print(f"DEBUG: spotipy_handling.py - Failed to use cached tracks as fallback: {e}")
@@ -1482,7 +1494,7 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
                     print(f"DEBUG: spotipy_handling.py - Error playing album directly: {e}")
                     print("DEBUG: spotipy_handling.py - Providing fallback song info")
                     song_info_updater_callback("Album Loading...", "Please Wait", False)
-                    return
+                return
         
         # Ensure proper randomization
         import random
@@ -1496,6 +1508,8 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
         track_name = track.get('name', 'Unknown Track')
         track_artist = track.get('artists', [{}])[0].get('name', 'Unknown Artist')
         
+
+        
         # Calculate random position from start to 30 seconds before end
         duration_ms = track.get('duration_ms', 0)
         max_position = max(0, duration_ms - 30000)  # 30 seconds before end
@@ -1503,6 +1517,9 @@ async def play_random_track_from_album(album_id, song_info_updater_callback):
         is_easter_egg_track_selected = (chosen_track_uri == EASTER_EGG_TRACK_URI)
         
         print(f"DEBUG: spotipy_handling.py - Playing: {track_name} by {track_artist} at {position_ms}ms")
+        print(f"DEBUG: spotipy_handling.py - Track URI: {chosen_track_uri}")
+        print(f"DEBUG: spotipy_handling.py - Easter egg URI: {EASTER_EGG_TRACK_URI}")
+        print(f"DEBUG: spotipy_handling.py - Is easter egg track: {is_easter_egg_track_selected}")
         
         # Use async approach for playing track
         played_successfully = await play_track_via_backend(chosen_track_uri, position_ms)
@@ -1523,7 +1540,7 @@ async def safe_pause_playback():
     
     if not is_pyodide():
         print("DEBUG: spotipy_handling.py - Not in browser environment, skipping pause")
-        return True
+    return True
     
     try:
         import js
@@ -1721,7 +1738,7 @@ async def get_album_search_input(screen, font):
                         print(f"DEBUG: spotipy_handling.py - Downloaded cover for {album['name']}")
                 except Exception as e:
                     print(f"DEBUG: spotipy_handling.py - Failed to download cover for {album['name']}: {e}")
-
+            
     async def draw_search_results_local():
         nonlocal album_covers
         
@@ -1733,7 +1750,7 @@ async def get_album_search_input(screen, font):
             loading_rect = loading_text.get_rect(center=(width // 2, 250))
             screen.blit(loading_text, loading_rect)
             return
-        
+
         if search_results:
             y_offset = results_area.y + 10
             for album in search_results:
@@ -1743,7 +1760,7 @@ async def get_album_search_input(screen, font):
                 else:
                     pygame.draw.rect(screen, WHITE, result_rect)
                 pygame.draw.rect(screen, DARK_BLUE, result_rect, 1)
-                
+
                 # Download cover on-demand if needed
                 if album['image_url'] and album['uri'] not in album_covers:
                     try:
@@ -1788,10 +1805,6 @@ async def get_album_search_input(screen, font):
                 artist_surf = artist_font_local.render(album['artist'], True, DARK_GREY)
                 screen.blit(artist_surf, (text_start_x, result_rect.y + 35))
                 y_offset += 80
-        elif is_searching:
-            print("DEBUG: spotipy_handling.py - Drawing search loading message")
-            loading_surf = font.render("Loading (search result)... hang on", True, WHITE)
-            screen.blit(loading_surf, (results_area.x + 10, results_area.y + 10))
         elif text:
             no_results_surf = font.render("Press Enter to search", True, WHITE)
             screen.blit(no_results_surf, (results_area.x + 10, results_area.y + 10))
@@ -2134,45 +2147,42 @@ async def search_album_via_backend(query):
         
         if hasattr(js.window, 'search_result'):
             result = js.window.search_result
-            
-            # Handle different result types
-            if isinstance(result, dict):
-                status = result.get('status', 500)
+        
+        # Handle different result types
+        if isinstance(result, dict):
+            status = result.get('status', 500)
+            if status == 200:
+                try:
+                    search_data = json.loads(result.get('text', '{}'))
+                    return search_data
+                except json.JSONDecodeError as e:
+                    print(f"DEBUG: spotipy_handling.py - JSON decode error: {e}")
+                    return None
+            else:
+                print(f"DEBUG: spotipy_handling.py - Search failed with status: {status}")
+                return None
+        elif isinstance(result, str):
+            # If it's a string, try to parse it as JSON
+            try:
+                search_data = json.loads(result)
+                return search_data
+            except json.JSONDecodeError as e:
+                print(f"DEBUG: spotipy_handling.py - JSON decode error from string: {e}")
+                return None
+        else:
+            # If it's an object, try to access properties directly
+            try:
+                status = getattr(result, 'status', 500)
                 if status == 200:
-                    try:
-                        search_data = json.loads(result.get('text', '{}'))
-                        return search_data
-                    except json.JSONDecodeError as e:
-                        print(f"DEBUG: spotipy_handling.py - JSON decode error: {e}")
-                        return None
+                    text = getattr(result, 'text', '{}')
+                    search_data = json.loads(text)
+                    return search_data
                 else:
                     print(f"DEBUG: spotipy_handling.py - Search failed with status: {status}")
                     return None
-            elif isinstance(result, str):
-                # If it's a string, try to parse it as JSON
-                try:
-                    search_data = json.loads(result)
-                    return search_data
-                except json.JSONDecodeError as e:
-                    print(f"DEBUG: spotipy_handling.py - JSON decode error from string: {e}")
-                    return None
-            else:
-                # If it's an object, try to access properties directly
-                try:
-                    status = getattr(result, 'status', 500)
-                    if status == 200:
-                        text = getattr(result, 'text', '{}')
-                        search_data = json.loads(text)
-                        return search_data
-                    else:
-                        print(f"DEBUG: spotipy_handling.py - Search failed with status: {status}")
-                        return None
-                except Exception as e:
-                    print(f"DEBUG: spotipy_handling.py - Error accessing object properties: {e}")
-                    return None
-        else:
-            print("DEBUG: spotipy_handling.py - No search result available")
-            return None
+            except Exception as e:
+                print(f"DEBUG: spotipy_handling.py - Error accessing object properties: {e}")
+                return None
     except Exception as e:
         print(f"DEBUG: spotipy_handling.py - Error in search_album_via_backend: {e}")
         return None

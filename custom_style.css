@@ -1,0 +1,114 @@
+/* Custom styling for SpotiSnake on itch.io */
+body {
+    font-family: arial;
+    margin: 0;
+    padding: 0;
+    /* Option 1: Green background */
+    background: #2d5a2d;
+    
+    /* Option 2: Darker green */
+    /* background: #1a3d1a; */
+    
+    /* Option 3: Green gradient */
+    /* background: linear-gradient(135deg, #2d5a2d 0%, #1a3d1a 100%); */
+    
+    /* Option 4: Use background.png (uncomment the line below and comment out the green background above) */
+    /* background: url('background.png') center center no-repeat fixed; */
+    /* background-size: cover; */
+    
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+}
+
+/* Center the canvas container */
+.emscripten {
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+}
+
+/* Style the canvas to be centered and have a nice border */
+canvas.emscripten {
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+    background-color: rgba(0, 0, 0, 0.1);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(10px);
+    width: 600px !important;
+    height: 600px !important;
+    max-width: 90vw;
+    max-height: 90vh;
+    position: relative !important;
+    top: auto !important;
+    bottom: auto !important;
+    left: auto !important;
+    right: auto !important;
+    margin: 0 auto;
+    z-index: 5;
+}
+
+/* Hide the transfer div when game is loaded */
+#transfer {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 10;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}
+
+/* Style the progress bar */
+#progress {
+    height: 20px;
+    width: 300px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.3);
+}
+
+#progress::-webkit-progress-bar {
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 10px;
+}
+
+#progress::-webkit-progress-value {
+    background: linear-gradient(90deg, #667eea, #764ba2);
+    border-radius: 10px;
+}
+
+/* Hide debug elements in production */
+#pyconsole, #crt, #system {
+    display: none !important;
+}
+
+/* Responsive design for mobile */
+@media (max-width: 768px) {
+    canvas.emscripten {
+        width: 95vw !important;
+        height: 95vw !important;
+        max-width: 500px;
+        max-height: 500px;
+    }
+    
+    #transfer {
+        width: 90%;
+        max-width: 400px;
+    }
+}
+
+/* Add a subtle animation to the canvas */
+@keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.9); }
+    to { opacity: 1; transform: scale(1); }
+}
+
+canvas.emscripten {
+    animation: fadeIn 0.5s ease-out;
+}
