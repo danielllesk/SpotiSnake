@@ -72,7 +72,7 @@ Pyodide is a technology that compiles Python code into WASM, which browsers can 
 3. Pyodide provides Python libraries and runtime environment
 4. The game runs as if it were native Python, but in the browser
 
-**Why We Use It:**
+**Why I Used It:**
 - Allows us to use Pygame (a Python game library) in the browser
 - Maintains the power and flexibility of Python
 - Enables complex game logic that would be difficult in JavaScript
@@ -90,7 +90,7 @@ Pygame is a Python library specifically designed for game development. It provid
 
 **Surface Objects:**
 ```python
-# A surface is like a digital canvas where we draw things
+# A surface is like a digital canvas where you draw things
 screen = pygame.display.set_mode((600, 600))  # Creates a 600x600 pixel canvas
 ```
 
@@ -285,7 +285,7 @@ Game → Flask Backend → Spotify API → Spotify Servers
 ```
 **Journey Note:** The main inspiration for this project was because I wanted to use the Spotify API in some way possible. It was just something that I thought I would enjoy working with, and I did.
 
-**Key API Endpoints We Use:**
+**Key API Endpoints I Use:**
 
 #### 1. Album Search
 ```python
@@ -595,7 +595,7 @@ if hasattr(js.window, 'result'):
     result = js.window.result
 ```
 
-**Key JavaScript Functions We Use:**
+**Key JavaScript Functions I Used:**
 
 #### 1. Fetch API
 ```javascript
@@ -622,7 +622,7 @@ navigator.sendBeacon(url, data);
 
 **Journey Note:** This was a funny name to me, not sure why
 
-**Why We Use sendBeacon:**
+**Why Use sendBeacon:**
 - When user closes the browser tab, we need to pause music
 - sendBeacon ensures this request gets sent even during page unload
 - Regular fetch requests might be cancelled when page closes
@@ -790,7 +790,7 @@ def cleanup_resources():
 
 ### Network Optimization
 
-**How We Optimize Network Usage:**
+**Network Usage:**
 ```python
 def optimize_api_calls():
     # Batch multiple requests together
@@ -808,7 +808,7 @@ def optimize_api_calls():
 
 ### Rendering Optimization
 
-**How We Optimize Graphics:**
+**Optimize Graphics:**
 ```python
 def optimize_rendering():
     # Only redraw changed areas
