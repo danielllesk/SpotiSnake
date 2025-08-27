@@ -15,7 +15,7 @@ logging.basicConfig(
     format='%(asctime)s %(levelname)s %(message)s'
 )
 
-print("DEBUG: backend.py - Starting Flask backend initialization")
+print("DEBUG: backend.py - Starting Flask backend initialization - VERSION 2.0")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
