@@ -1,6 +1,6 @@
 # 🎵 SpotiSnake
 
-**SpotiSnake** is an innovative fusion of the classic Snake game and Spotify album listening. Eat apples, and reveal the full artwork, and enjoy real-time music as you play!
+**SpotiSnake** is an innovative fusion of the classic Snake game and Spotify album listening. Eat apples, reveal the full artwork, and enjoy real-time music as you play!
 
 ## 🎮 Game Overview
 
@@ -11,6 +11,12 @@ SpotiSnake transforms your favorite albums into an interactive gaming experience
 - **🖼️ Reveal Artwork**: Each apple you eat reveals a piece of the album cover of the album you chose 
 - **🎵 Dynamic Music**: New tracks play every 5 apples eaten, with progressive speed
 - **🥚 Hidden Easter Egg**: Discover a secret track for a special surprise!
+
+## ⚠️ Important Update
+
+**Unfortunately, due to Spotify's updated API permissions and development mode restrictions, the music playback feature is no longer available in this version. The game is currently live on [itch.io](https://danielllesk.itch.io/spotisnake) but without music functionality.**
+
+**For the latest version of the code, please visit: [SpotiSnake 2.0](https://github.com/danielllesk/spotisnake2.0)**
 
 ---
 
@@ -110,10 +116,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### Current Status
 - ✅ Core gameplay complete
-- ✅ Spotify integration working
+- ✅ Spotify integration working *(Limited due to API restrictions)*
 - ✅ Web deployment ready
 - 🔄 Performance optimization
 - 🔄 Additional game modes
+- ⚠️ Music playback disabled due to Spotify API changes
 
 ---
 

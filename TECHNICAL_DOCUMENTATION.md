@@ -873,6 +873,25 @@ async def load_game_resources():
 
 ---
 
+## The Spotify API Limitation
+
+**Journey Note:** After hours and days and months of working on this project, I come to find out that the API permissions for Spotify have changed so that I cannot publish this game using their API publicly. I can add 25 users manually through email, so if you desperately want to play the game with full functionality, we can test this method. This update is very disheartening, especially after spending so much time and effort into this project.
+
+**What Happened:**
+Spotify's Developer Dashboard now requires apps to be in "Development Mode" by default, which limits access to only 25 manually added users. To make the app publicly available, it needs to go through a review process that requires:
+- A business/organization account
+- Detailed documentation about how the app uses Spotify data
+- Compliance with various guidelines and policies
+- 250,000 active monthly users
+
+**The Impact:**
+- Users othe than myself cannot connect to the spotify api
+
+**Current Status:**
+The game is still playable on itch.io, but without the music integration that made it special. A new version (SpotiSnake 2.0) is being developed using an alternative API, however playback is still unavailable.
+
+---
+
 ## Conclusion
 
 Thank you for taking the time to play my game, or at least look through these documents! This project took a whole summer term to complete, and I spent hours learning brand new technologies to create something unique that I personally enjoy and hope you do too.
