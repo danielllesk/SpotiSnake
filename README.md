@@ -121,7 +121,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - 🔄 Performance optimization
 - 🔄 Additional game modes
 - ⚠️ Music playback disabled due to Spotify API changes
-
+- limited version on https://danielllesk.itch.io/spotisnake
 ---
 
 **Made with ❤️ for music lovers and gamers everywhere**

@@ -885,18 +885,17 @@ Spotify's Developer Dashboard now requires apps to be in "Development Mode" by d
 - 250,000 active monthly users
 
 **The Impact:**
-- Users othe than myself cannot connect to the spotify api
+- Users othe than myself, and 25 people I manually add to the api cannot connect to the spotify api
 
 **Current Status:**
-The game is still playable on itch.io, but without the music integration that made it special. A new version (SpotiSnake 2.0) is being developed using an alternative API, however playback is still unavailable.
-
+The game is still playable on itch.io, but without the music integration that made it fun and special. A new version (SpotiSnake 2.0) is being developed using an alternative API, however playback is still unavailable.
 ---
 
 ## Conclusion
 
 Thank you for taking the time to play my game, or at least look through these documents! This project took a whole summer term to complete, and I spent hours learning brand new technologies to create something unique that I personally enjoy and hope you do too.
 
-**Journey Note:** This was my first major project combining multiple technologies I had never used before. The learning curve was steep, but the satisfaction of seeing everything work together was wild tbh. From the initial concept to the final product, every bug fix and feature addition taught me something new about web development, API integration, and game design.
+**Journey Note:** This was my first major project combining multiple technologies I had never used before. The learning curve was steep, but the satisfaction of seeing everything work together was wild tbh. From the initial concept to the final product, every bug fix and feature addition taught me something new about web development, API integration, and game design. Super disheartning that you guys cannot experience the full project
 
 If there are any changes or fixes you'd like to suggest, I'm open to it! Or if you want to contribute to the project, I'm also open to that too. This has been an amazing learning experience, and I'm excited to see where it goes from here.
 ---
