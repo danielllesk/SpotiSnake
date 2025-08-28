@@ -1,44 +1,41 @@
 import pygame
+pygame.init()
+pygame.font.init()
 import asyncio
 import sys
 import os
 import time
 from shared_constants import *
-from spotipy_handling import check_authenticated, backend_login, play_track_via_backend, safe_pause_playback, cleanup
-
-pygame.init()
-pygame.font.init()
+from spotipy_handling import (
+    get_album_search_input, cleanup, get_spotify_device, safe_pause_playback, backend_login, check_authenticated, play_uri_with_details, play_track_via_backend
+)
 
 screen = pygame.display.set_mode((width, height))
-pygame.display.set_caption('SpotiSnake')
-font = pygame.font.SysFont('Press Start 2P', 30)
+pygame.display.set_caption("SpotiSnake - Start Menu")
+font = pygame.font.SysFont("Press Start 2P", 25)
 
-async def quit_game_async():
+async def quit_game_async(dummy_arg=None):
+    """Handles game shutdown: pauses Spotify, cleans up, and exits properly."""
     try:
         await safe_pause_playback()
-        await asyncio.sleep(0.2)
-    except Exception as e:
+        await asyncio.sleep(0.5)
+    except Exception:
         pass
     
-    try:
-        await cleanup()
-    except Exception as e:
-        pass
+    await cleanup()
     
     try:
         pygame.quit()
-    except Exception as e:
+    except Exception:
         pass
     
-    if getattr(sys, 'frozen', False):
-        os._exit(0)
-    else:
-        sys.exit(0)
+    sys.exit(0)
 
 async def back_to_menu():
+    """Returns to the start menu instead of quitting."""
     try:
         await safe_pause_playback()
-    except Exception as e:
+    except Exception:
         pass
 
 async def login_screen():
@@ -128,7 +125,7 @@ async def login_screen():
                                     authed = await check_authenticated()
                                     if authed:
                                         return True
-                                except Exception as ce:
+                                except Exception:
                                     pass
                             await asyncio.sleep(0.1)
                     except Exception as e:
@@ -164,13 +161,11 @@ async def main_menu():
     """Displays the main menu without checking authentication."""
     clock = pygame.time.Clock()
     
+    browser_mode = False
     try:
-        import js
-        is_browser = hasattr(js, 'window')
-    except:
-        is_browser = False
-    
-    if is_browser:
+        from spotipy_handling import is_pyodide
+        browser_mode = is_pyodide()
+    except Exception:
         pass
     
     running = True
@@ -227,6 +222,7 @@ async def start_menu():
     clock = pygame.time.Clock()
     
     is_authenticated = await check_authenticated()
+    # Force login screen every time to avoid authentication/cookie issues
     is_authenticated = False
     if not is_authenticated:
         login_success = await login_screen()
@@ -236,7 +232,7 @@ async def start_menu():
     
     try:
         await play_track_via_backend(START_MENU_URI, 0)
-    except Exception as e:
+    except Exception:
         pass
     
     await main_menu()
