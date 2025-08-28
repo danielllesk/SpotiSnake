@@ -15,7 +15,6 @@ logging.basicConfig(
     format='%(asctime)s %(levelname)s %(message)s'
 )
 
-print("DEBUG: backend.py - Starting Flask backend initialization - VERSION 2.0")
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
@@ -37,10 +36,6 @@ else:
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 
 # Add session debugging
-logging.debug(f"DEBUG: backend.py - Session config - SameSite: {app.config['SESSION_COOKIE_SAMESITE']}")
-logging.debug(f"DEBUG: backend.py - Session config - Secure: {app.config['SESSION_COOKIE_SECURE']}")
-logging.debug(f"DEBUG: backend.py - Session config - Domain: {app.config['SESSION_COOKIE_DOMAIN']}")
-logging.debug(f"DEBUG: backend.py - Environment: {'development' if is_development else 'production'}")
 
 # More permissive CORS configuration
 CORS(app, supports_credentials=True, 
@@ -78,10 +73,7 @@ CORS(app, supports_credentials=True,
 # Add CORS debugging middleware
 @app.before_request
 def log_request_info():
-    logging.debug(f"DEBUG: backend.py - Request: {request.method} {request.path}")
-    logging.debug(f"DEBUG: backend.py - Origin: {request.headers.get('Origin', 'No Origin')}")
-    logging.debug(f"DEBUG: backend.py - User-Agent: {request.headers.get('User-Agent', 'No User-Agent')}")
-    logging.debug(f"DEBUG: backend.py - All headers: {dict(request.headers)}")
+    pass
 
 # Add comprehensive CORS handler
 def add_cors_headers(response):
@@ -94,7 +86,6 @@ def add_cors_headers(response):
         status_code = None
     
     origin = request.headers.get('Origin', 'No Origin')
-    logging.debug(f"DEBUG: backend.py - Processing CORS for Origin: {origin}")
     
     allowed_origins = [
         "http://localhost:8000",
@@ -119,14 +110,12 @@ def add_cors_headers(response):
     
     if origin in allowed_origins or any(origin.endswith(domain) for domain in ['.itch.io', '.itch.zone']):
         response_obj.headers['Access-Control-Allow-Origin'] = origin
-        logging.debug(f"DEBUG: backend.py - Setting Access-Control-Allow-Origin to {origin}")
     else:
         logging.warning(f"DEBUG: backend.py - Origin {origin} not allowed")
     
     response_obj.headers['Access-Control-Allow-Credentials'] = 'true'
     response_obj.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response_obj.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
-    logging.debug(f"DEBUG: backend.py - Response headers: {dict(response_obj.headers)}")
     
     if status_code:
         return response_obj, status_code
@@ -136,9 +125,6 @@ def add_cors_headers(response):
 @app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
 @app.route('/<path:path>', methods=['OPTIONS'])
 def handle_options(path):
-    logging.debug(f"DEBUG: backend.py - OPTIONS request for path: {path}")
-    logging.debug(f"DEBUG: backend.py - Origin: {request.headers.get('Origin', 'No Origin')}")
-    logging.debug(f"DEBUG: backend.py - All headers: {dict(request.headers)}")
     
     # Create response with CORS headers
     response = jsonify({'status': 'ok'})
@@ -152,10 +138,8 @@ def handle_options(path):
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
     
-    logging.debug(f"DEBUG: backend.py - OPTIONS response headers: {dict(response.headers)}")
     return response
 
-print("DEBUG: backend.py - Setting up Spotify PKCE authentication")
 sp_oauth = SpotifyPKCE(
     client_id=SPOTIFY_CLIENT_ID,
     redirect_uri=SPOTIFY_REDIRECT_URI,
@@ -168,23 +152,17 @@ sp_oauth = SpotifyPKCE(
 # global_token_info = None
 
 def get_spotify():
-    logging.debug("DEBUG: backend.py - get_spotify() called")
     token_info = session.get('token_info')
     if not token_info:
-        logging.debug("DEBUG: backend.py - No token_info available (session)")
         return None
     
-    logging.debug(f"DEBUG: backend.py - Token info type: {type(token_info)}")
-    logging.debug(f"DEBUG: backend.py - Token info: {token_info}")
     
     try:
         if isinstance(token_info, dict) and 'access_token' in token_info:
             access_token = token_info['access_token']
         else:
-            logging.debug("DEBUG: backend.py - Invalid token_info structure")
             return None
             
-        logging.debug("DEBUG: backend.py - Creating Spotify client with token")
         return spotipy.Spotify(auth=access_token)
     except Exception as e:
         logging.error(f"DEBUG: backend.py - Error creating Spotify client: {e}")
@@ -192,7 +170,6 @@ def get_spotify():
 
 @app.route('/')
 def index():
-    logging.debug("DEBUG: backend.py - / endpoint called")
     return """
     <html>
         <head><title>SpotiSnake Backend</title></head>
@@ -207,33 +184,22 @@ def index():
 
 @app.route('/login')
 def login():
-    logging.debug("DEBUG: backend.py - /login endpoint called")
     auth_url = sp_oauth.get_authorize_url()
-    logging.debug(f"DEBUG: backend.py - Redirecting to auth URL: {auth_url}")
     return redirect(auth_url)
 
 @app.route('/callback')
 def callback():
-    logging.debug("DEBUG: backend.py - /callback endpoint called")
     code = request.args.get('code')
-    logging.debug(f"DEBUG: backend.py - Received auth code: {code[:10]}...")
     try:
         token_info = sp_oauth.get_access_token(code)
-        logging.debug(f"DEBUG: backend.py - Raw token_info: {token_info}")
-        logging.debug(f"DEBUG: backend.py - Token_info type: {type(token_info)}")
         # If token_info is a string, wrap it in a dict
         if isinstance(token_info, str):
             token_info = {'access_token': token_info}
         session.permanent = True  # Make session permanent so it doesn't expire
         session['token_info'] = token_info
-        logging.debug("DEBUG: backend.py - Token stored in session")
-        logging.debug(f"DEBUG: backend.py - Session contents after storing token: {dict(session)}")
-        logging.debug(f"DEBUG: backend.py - Session ID: {session.sid if hasattr(session, 'sid') else 'No SID'}")
-        logging.debug(f"DEBUG: backend.py - Session permanent: {session.permanent}")
         # Test the token immediately
         sp = spotipy.Spotify(auth=token_info['access_token'])
         user_info = sp.current_user()
-        logging.debug(f"DEBUG: backend.py - User authenticated: {user_info.get('id', 'unknown')}")
         # Show a visually appealing static login success page
         return f"""
         <html>
@@ -310,29 +276,21 @@ def callback():
 
 @app.route('/me')
 def me():
-    logging.debug("DEBUG: backend.py - /me endpoint called")
-    logging.debug(f"DEBUG: backend.py - Session ID: {session.sid if hasattr(session, 'sid') else 'No SID'}")
-    logging.debug(f"DEBUG: backend.py - Session contents: {dict(session)}")
-    logging.debug(f"DEBUG: backend.py - Request cookies: {dict(request.cookies)}")
     
     # Check session first
     token_info = session.get('token_info')
     if not token_info:
-        logging.debug("DEBUG: backend.py - No token_info in session for /me")
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
         return add_cors_headers(response[0])
 
-    logging.debug(f"DEBUG: backend.py - Token info found: {type(token_info)}")
 
     sp = get_spotify()
     if not sp:
-        logging.debug("DEBUG: backend.py - Failed to create Spotify client for /me")
         response = jsonify({'error': 'Not authenticated - invalid token'}), 401
         return add_cors_headers(response[0])
     
     try:
         user_info = sp.current_user()
-        logging.debug(f"DEBUG: backend.py - User info retrieved: {user_info.get('id', 'unknown')}")
         response = jsonify(user_info)
         return add_cors_headers(response)
     except SpotifyException as e:
@@ -347,7 +305,6 @@ def me():
 @app.route('/search', methods=['GET', 'OPTIONS'])
 def search():
     if request.method == 'OPTIONS':
-        logging.debug("DEBUG: backend.py - OPTIONS request for /search endpoint")
         response = jsonify({'status': 'ok'})
         response = add_cors_headers(response)
         # Add additional CORS headers for preflight
@@ -359,51 +316,39 @@ def search():
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
         return response
     
-    logging.debug("DEBUG: backend.py - GET /search endpoint called")
     
     # Check session first
     token_info = session.get('token_info')
     if not token_info:
-        logging.debug("DEBUG: backend.py - No token_info in session for /search")
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
         return add_cors_headers(response[0])
     
-    logging.debug(f"DEBUG: backend.py - Token info found for /search: {type(token_info)}")
     
     sp = get_spotify()
     if not sp:
-        logging.debug("DEBUG: backend.py - Failed to create Spotify client for /search")
         response = jsonify({'error': 'Not authenticated - invalid token'}), 401
         return add_cors_headers(response[0])
     q = request.args.get('q')
-    logging.debug(f"DEBUG: backend.py - Searching for: {q}")
-    logging.debug(f"DEBUG: backend.py - Query type: {type(q)}, length: {len(q) if q else 0}")
     
     if not q:
-        logging.debug("DEBUG: backend.py - No query parameter provided")
         response = jsonify({'error': 'No search query provided'}), 400
         return add_cors_headers(response)
     
     try:
-        logging.debug(f"DEBUG: backend.py - Calling Spotify API search with query: '{q}'")
         results = sp.search(q, type='album', limit=10)  # Increased from 5 to 10 for better selection
         albums_found = len(results.get('albums', {}).get('items', []))
-        logging.debug(f"DEBUG: backend.py - Found {albums_found} albums")
         
         if albums_found > 0:
             # Log first album details for debugging
             first_album = results['albums']['items'][0]
-            logging.debug(f"DEBUG: backend.py - First album: '{first_album.get('name', 'Unknown')}' by '{first_album.get('artists', [{}])[0].get('name', 'Unknown') if first_album.get('artists') else 'Unknown'}'")
         
         response = jsonify(results)
-        logging.debug(f"DEBUG: backend.py - Search response created successfully")
         
         # Add performance optimization headers
         response.headers['Cache-Control'] = 'public, max-age=300'  # Cache for 5 minutes
         response.headers['X-Search-Results-Count'] = str(albums_found)
         
         cors_response = add_cors_headers(response)
-        logging.debug(f"DEBUG: backend.py - CORS headers added, returning response")
         return cors_response
     except Exception as e:
         logging.error(f"DEBUG: backend.py - Error in search: {e}")
@@ -417,7 +362,6 @@ def search():
 @app.route('/play', methods=['POST', 'OPTIONS'])
 def play():
     if request.method == 'OPTIONS':
-        logging.debug("DEBUG: backend.py - OPTIONS request for /play endpoint")
         response = jsonify({'status': 'ok'})
         response = add_cors_headers(response)
         # Add additional CORS headers for preflight
@@ -427,45 +371,36 @@ def play():
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
-        logging.debug(f"DEBUG: backend.py - OPTIONS response headers for /play: {dict(response.headers)}")
         return response
     
-    logging.debug("DEBUG: backend.py - POST /play endpoint called")
     
     # Check session first
     token_info = session.get('token_info')
     if not token_info:
-        logging.debug("DEBUG: backend.py - No token_info in session for /play")
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
         return add_cors_headers(response[0])
     
-    logging.debug(f"DEBUG: backend.py - Token info found for /play: {type(token_info)}")
     
     sp = get_spotify()
     if not sp:
-        logging.debug("DEBUG: backend.py - Failed to create Spotify client for /play")
         response = jsonify({'error': 'Not authenticated - invalid token'}), 401
         return add_cors_headers(response[0])
     
     uri = request.json.get('uri')
     device_id = request.json.get('device_id')
     position_ms = request.json.get('position_ms', 0)
-    logging.debug(f"DEBUG: backend.py - Playing URI: {uri}, device: {device_id}, position: {position_ms}")
     
     try:
         # Try to start playback with the provided device_id
         sp.start_playback(device_id=device_id, uris=[uri] if uri else None, position_ms=position_ms)
-        logging.debug("DEBUG: backend.py - Playback started successfully")
         response = jsonify({'status': 'playing'})
         return add_cors_headers(response)
     except Exception as e:
-        logging.debug(f"DEBUG: backend.py - Playback failed with device_id {device_id}: {e}")
         
         # If that fails, try to find an available device
         try:
             devices_info = sp.devices()
             devices = devices_info.get('devices', [])
-            logging.debug(f"DEBUG: backend.py - Found {len(devices)} devices")
             
             # Look for an active device first
             active_device = None
@@ -480,25 +415,20 @@ def play():
             
             if active_device:
                 device_id = active_device['id']
-                logging.debug(f"DEBUG: backend.py - Using device: {active_device.get('name', 'Unknown')} (ID: {device_id})")
                 sp.start_playback(device_id=device_id, uris=[uri] if uri else None, position_ms=position_ms)
-                logging.debug("DEBUG: backend.py - Playback started successfully with found device")
                 response = jsonify({'status': 'playing', 'device_id': device_id})
                 return add_cors_headers(response)
             else:
-                logging.debug("DEBUG: backend.py - No devices available")
                 response = jsonify({'error': 'No active device found. Please open Spotify and start playing music.'}), 404
                 return add_cors_headers(response)
                 
         except Exception as e2:
-            logging.debug(f"DEBUG: backend.py - Failed to find and use device: {e2}")
             response = jsonify({'error': 'No active device found. Please open Spotify and start playing music.'}), 404
             return add_cors_headers(response)
 
 @app.route('/pause', methods=['POST', 'OPTIONS'])
 def pause():
     if request.method == 'OPTIONS':
-        logging.debug("DEBUG: backend.py - OPTIONS request for /pause endpoint")
         response = jsonify({'status': 'ok'})
         response = add_cors_headers(response)
         # Add additional CORS headers for preflight
@@ -510,35 +440,28 @@ def pause():
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
         return response
     
-    logging.debug("DEBUG: backend.py - POST /pause endpoint called")
     
     # Check session first
     token_info = session.get('token_info')
     if not token_info:
-        logging.debug("DEBUG: backend.py - No token_info in session for /pause")
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
         return add_cors_headers(response[0])
     
-    logging.debug(f"DEBUG: backend.py - Token info found for /pause: {type(token_info)}")
     
     sp = get_spotify()
     if not sp:
-        logging.debug("DEBUG: backend.py - Failed to create Spotify client for /pause")
         response = jsonify({'error': 'Not authenticated - invalid token'}), 401
         return add_cors_headers(response[0])
     
     device_id = request.json.get('device_id')
-    logging.debug(f"DEBUG: backend.py - Pausing device: {device_id}")
     
     try:
         sp.pause_playback(device_id=device_id)
-        logging.debug("DEBUG: backend.py - Playback paused successfully")
         response = jsonify({'status': 'paused'})
         return add_cors_headers(response)
     except spotipy.exceptions.SpotifyException as e:
         logging.error(f"DEBUG: backend.py - Spotify pause error: {e}")
         if e.http_status == 403:
-            logging.debug("DEBUG: backend.py - 403 error - likely no active device or restriction")
             response = jsonify({'status': 'no_active_device', 'message': 'No active device to pause'})
             return add_cors_headers(response)
         else:
@@ -551,53 +474,42 @@ def pause():
 
 @app.route('/devices')
 def devices():
-    logging.debug("DEBUG: backend.py - /devices endpoint called")
     
     # Check session first
     token_info = session.get('token_info')
     if not token_info:
-        logging.debug("DEBUG: backend.py - No token_info in session for /devices")
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
         return add_cors_headers(response[0])
     
-    logging.debug(f"DEBUG: backend.py - Token info found for /devices: {type(token_info)}")
     
     sp = get_spotify()
     if not sp:
-        logging.debug("DEBUG: backend.py - Failed to create Spotify client for /devices")
         response = jsonify({'error': 'Not authenticated - invalid token'}), 401
         return add_cors_headers(response[0])
     devices_info = sp.devices()
-    logging.debug(f"DEBUG: backend.py - Found {len(devices_info.get('devices', []))} devices")
     response = jsonify(devices_info)
     return add_cors_headers(response)
 
 @app.route('/currently_playing')
 def currently_playing():
-    logging.debug("DEBUG: backend.py - /currently_playing endpoint called")
     
     # Check session first
     token_info = session.get('token_info')
     if not token_info:
-        logging.debug("DEBUG: backend.py - No token_info in session for /currently_playing")
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
         return add_cors_headers(response[0])
     
-    logging.debug(f"DEBUG: backend.py - Token info found for /currently_playing: {type(token_info)}")
     
     sp = get_spotify()
     if not sp:
-        logging.debug("DEBUG: backend.py - Failed to create Spotify client for /currently_playing")
         response = jsonify({'error': 'Not authenticated - invalid token'}), 401
         return add_cors_headers(response[0])
     current = sp.current_playback()
-    logging.debug(f"DEBUG: backend.py - Current playback: {current.get('item', {}).get('name', 'none') if current else 'none'}")
     response = jsonify(current)
     return add_cors_headers(response)
 
 @app.route('/debug')
 def debug_page():
-    logging.debug("DEBUG: backend.py - /debug page called")
     token_info = session.get('token_info')
     has_token = token_info is not None
     
@@ -638,10 +550,8 @@ def debug_page():
 
 @app.route('/debug_session')
 def debug_session():
-    logging.debug("DEBUG: backend.py - /debug_session endpoint called")
     token_info = session.get('token_info')
     if token_info:
-        logging.debug("DEBUG: backend.py - Session has token_info")
         response = jsonify({
             'has_token': True,
             'token_type': type(token_info).__name__,
@@ -649,40 +559,28 @@ def debug_session():
         })
         return add_cors_headers(response)
     else:
-        logging.debug("DEBUG: backend.py - Session has no token_info")
         response = jsonify({'has_token': False})
         return add_cors_headers(response)
 
 @app.route('/album_tracks')
 def album_tracks():
-    logging.debug("DEBUG: backend.py - /album_tracks endpoint called")
     
     # Add detailed session debugging
-    logging.debug(f"DEBUG: backend.py - Session ID: {session.get('_id', 'No session ID')}")
-    logging.debug(f"DEBUG: backend.py - Session contents: {dict(session)}")
-    logging.debug(f"DEBUG: backend.py - Session permanent: {session.get('_permanent', False)}")
     
     # Check session first
     token_info = session.get('token_info')
     if not token_info:
-        logging.debug("DEBUG: backend.py - No token_info in session for /album_tracks")
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
         return add_cors_headers(response[0])
     
-    logging.debug(f"DEBUG: backend.py - Token info found for /album_tracks: {type(token_info)}")
     
     sp = get_spotify()
     if not sp:
-        logging.debug("DEBUG: backend.py - Failed to create Spotify client for /album_tracks")
         response = jsonify({'error': 'Not authenticated - invalid token'}), 401
         return add_cors_headers(response[0])
     album_id = request.args.get('album_id')
-    logging.debug(f"DEBUG: backend.py - Getting tracks for album: {album_id}")
     try:
-        logging.debug(f"DEBUG: backend.py - About to call sp.album_tracks with album_id: {album_id}")
         results = sp.album_tracks(album_id, limit=50)
-        logging.debug(f"DEBUG: backend.py - Found {len(results.get('items', []))} tracks")
-        logging.debug(f"DEBUG: backend.py - Album tracks response: {results}")
     except SpotifyException as e:
         logging.error(f"DEBUG: backend.py - SpotifyException getting album tracks: {e}")
         logging.error(f"DEBUG: backend.py - SpotifyException details: status={e.http_status}, msg={e.msg}")
@@ -698,9 +596,6 @@ def album_tracks():
 
 @app.route('/test_cors', methods=['GET', 'POST', 'OPTIONS'])
 def test_cors():
-    logging.debug("DEBUG: backend.py - /test_cors endpoint called")
-    logging.debug(f"DEBUG: backend.py - Origin header: {request.headers.get('Origin', 'No Origin')}")
-    logging.debug(f"DEBUG: backend.py - All headers: {dict(request.headers)}")
     response = jsonify({
         'message': 'CORS test successful', 
         'origin': request.headers.get('Origin', 'No Origin'),
@@ -713,7 +608,6 @@ def test_cors():
 @app.route('/ping', methods=['GET', 'OPTIONS'])
 def ping():
     """Simple ping endpoint for testing connectivity"""
-    logging.debug("DEBUG: backend.py - /ping endpoint called")
     response = jsonify({
         'message': 'pong',
         'origin': request.headers.get('Origin', 'No Origin'),
@@ -724,7 +618,6 @@ def ping():
 @app.route('/test_session', methods=['GET', 'OPTIONS'])
 def test_session():
     """Test session functionality"""
-    logging.debug("DEBUG: backend.py - /test_session endpoint called")
     token_info = session.get('token_info')
     has_token = token_info is not None
     
@@ -741,7 +634,6 @@ def test_session():
 @app.route('/force_auth', methods=['GET', 'OPTIONS'])
 def force_auth():
     """Force authentication for testing - creates a dummy session"""
-    logging.debug("DEBUG: backend.py - /force_auth endpoint called")
     
     # Create a dummy token for testing
     dummy_token = {
@@ -752,7 +644,6 @@ def force_auth():
     }
     
     session['token_info'] = dummy_token
-    logging.debug("DEBUG: backend.py - Created dummy token in session")
     
     response = jsonify({
         'message': 'Dummy authentication created for testing',
@@ -764,24 +655,19 @@ def force_auth():
 @app.route('/test_play', methods=['GET', 'OPTIONS'])
 def test_play():
     """Test endpoint to check if play would work"""
-    logging.debug("DEBUG: backend.py - /test_play endpoint called")
     
     # Check session first
     token_info = session.get('token_info')
     if not token_info:
-        logging.debug("DEBUG: backend.py - No token_info in session for /test_play")
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
         return add_cors_headers(response[0])
     
-    logging.debug(f"DEBUG: backend.py - Token info found for /test_play: {type(token_info)}")
     
     sp = get_spotify()
     if not sp:
-        logging.debug("DEBUG: backend.py - Failed to create Spotify client for /test_play")
         response = jsonify({'error': 'Not authenticated - invalid token'}), 401
         return add_cors_headers(response[0])
     
-    logging.debug("DEBUG: backend.py - Spotify client created successfully for /test_play")
     response = jsonify({
         'message': 'Authentication test successful',
         'has_token': True,
@@ -793,27 +679,22 @@ def test_play():
 @app.route('/test_search', methods=['GET', 'OPTIONS'])
 def test_search():
     """Test endpoint to check if search would work"""
-    logging.debug("DEBUG: backend.py - /test_search endpoint called")
     
     # Check session first
     token_info = session.get('token_info')
     if not token_info:
-        logging.debug("DEBUG: backend.py - No token_info in session for /test_search")
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
         return add_cors_headers(response[0])
     
-    logging.debug(f"DEBUG: backend.py - Token info found for /test_search: {type(token_info)}")
     
     sp = get_spotify()
     if not sp:
-        logging.debug("DEBUG: backend.py - Failed to create Spotify client for /test_search")
         response = jsonify({'error': 'Not authenticated - invalid token'}), 401
         return add_cors_headers(response[0])
     
     # Try a simple search
     try:
         results = sp.search('test', type='album', limit=1)
-        logging.debug("DEBUG: backend.py - Search test successful")
         response = jsonify({
             'message': 'Search test successful',
             'has_token': True,
@@ -823,7 +704,6 @@ def test_search():
         })
         return add_cors_headers(response)
     except Exception as e:
-        logging.debug(f"DEBUG: backend.py - Search test failed: {e}")
         response = jsonify({
             'error': 'Search test failed',
             'exception': str(e),
@@ -837,7 +717,6 @@ def test_search():
 def proxy_image():
     """Proxy image downloads to avoid CORS issues"""
     if request.method == 'OPTIONS':
-        logging.debug("DEBUG: backend.py - OPTIONS request for /proxy_image endpoint")
         response = jsonify({'status': 'ok'})
         response = add_cors_headers(response)
         # Add additional CORS headers for preflight
@@ -847,21 +726,17 @@ def proxy_image():
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
-        logging.debug(f"DEBUG: backend.py - OPTIONS response headers for /proxy_image: {dict(response.headers)}")
         return response
     
-    logging.debug("DEBUG: backend.py - POST /proxy_image endpoint called")
     
     try:
         data = request.get_json()
         image_url = data.get('image_url')
         
         if not image_url:
-            logging.debug("DEBUG: backend.py - No image_url provided")
             response = jsonify({'error': 'No image_url provided'}), 400
             return add_cors_headers(response[0])
         
-        logging.debug(f"DEBUG: backend.py - Proxying image from: {image_url}")
         
         # Download the image
         import requests
@@ -877,7 +752,6 @@ def proxy_image():
         response = Response(img_response.content, mimetype=img_response.headers.get('content-type', 'image/jpeg'))
         response = add_cors_headers(response)
         
-        logging.debug(f"DEBUG: backend.py - Successfully proxied image, size: {len(img_response.content)} bytes")
         return response
         
     except Exception as e:
@@ -889,7 +763,6 @@ def proxy_image():
 def download_album_cover():
     """Download album cover and return as base64 data"""
     if request.method == 'OPTIONS':
-        logging.debug("DEBUG: backend.py - OPTIONS request for /download_album_cover endpoint")
         response = jsonify({'status': 'ok'})
         response = add_cors_headers(response)
         # Add additional CORS headers for preflight
@@ -899,21 +772,17 @@ def download_album_cover():
         response.headers['Access-Control-Allow-Credentials'] = 'true'
         response.headers['Access-Control-Allow-Methods'] = 'POST, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Origin, Accept, X-Requested-With'
-        logging.debug(f"DEBUG: backend.py - OPTIONS response headers for /download_album_cover: {dict(response.headers)}")
         return response
     
-    logging.debug("DEBUG: backend.py - POST /download_album_cover endpoint called")
     
     try:
         data = request.get_json()
         image_url = data.get('image_url')
         
         if not image_url:
-            logging.debug("DEBUG: backend.py - No image_url provided")
             response = jsonify({'error': 'No image_url provided'}), 400
             return add_cors_headers(response[0])
         
-        logging.debug(f"DEBUG: backend.py - Downloading album cover from: {image_url}")
         
         # Download the image
         import requests
@@ -937,7 +806,6 @@ def download_album_cover():
         })
         response = add_cors_headers(response)
         
-        logging.debug(f"DEBUG: backend.py - Successfully downloaded album cover, size: {len(img_response.content)} bytes")
         return response
         
     except Exception as e:
@@ -946,5 +814,4 @@ def download_album_cover():
         return add_cors_headers(response[0])
 
 if __name__ == '__main__':
-    logging.debug("DEBUG: backend.py - Starting Flask server on port 5000")
     app.run(debug=True, port=5000, host='0.0.0.0') 

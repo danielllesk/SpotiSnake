@@ -50,8 +50,6 @@ def cut_image_into_pieces(image_surface, piece_width, piece_height):
 
 async def start_game(screen):
     """Initializes and runs the main SpotiSnake game loop, including setup and event handling."""
-    print("DEBUG: snake_logic.py - start_game called")
-    print(f"DEBUG: snake_logic.py - fruit_image available: {fruit_image is not None}")
     pygame.display.set_caption('SpotiSnake')
 
     album_result = None
@@ -59,58 +57,44 @@ async def start_game(screen):
 
     try:
         test_font_object = pygame.font.SysFont('corbel', 20)
-        print("DEBUG: snake_logic.py - Font loaded successfully")
     except Exception as e:
-        print(f"DEBUG: snake_logic.py - Font loading failed: {e}")
         traceback.print_exc()
         await asyncio.sleep(1)
         try:
             fallback_font = pygame.font.SysFont('sans', 20) 
-            print("DEBUG: snake_logic.py - Using fallback font")
             album_result = await get_album_search_input(screen, fallback_font)
         except Exception as e:
-            print(f"DEBUG: snake_logic.py - Fallback font also failed: {e}")
             traceback.print_exc()
             await start_menu()
             return
     else:
         try:
-            print("DEBUG: snake_logic.py - Getting album search input")
             album_result = await get_album_search_input(screen, test_font_object)
-            print(f"DEBUG: snake_logic.py - Album search result: {album_result}")
         except Exception as e:
-            print(f"DEBUG: snake_logic.py - Album search failed: {e}")
             traceback.print_exc()
             await start_menu()
             return
 
     # Extra debug: ensure album_result is valid
     if album_result == USER_ABORT_GAME_FROM_SEARCH:
-        print("DEBUG: snake_logic.py - User aborted from search (album_result == USER_ABORT_GAME_FROM_SEARCH)")
         await quit_game_async()
         return
     
     if album_result == "BACK_TO_MENU":
-        print("DEBUG: snake_logic.py - User chose back to menu (album_result == BACK_TO_MENU)")
         # Play start menu music when returning to menu
-        print("DEBUG: snake_logic.py - Playing start menu music on return")
         try:
             await play_track_via_backend(START_MENU_URI, 0)
-            print("DEBUG: snake_logic.py - Start menu music started on return")
         except Exception as e:
-            print(f"DEBUG: snake_logic.py - Failed to start menu music on return: {e}")
+            pass
         await main_menu()
         return
     
     if album_result == "LOGIN_REQUESTED":
-        print("DEBUG: snake_logic.py - User requested login (album_result == LOGIN_REQUESTED)")
         await start_menu()
         return
     
     if not album_result:
-        print("DEBUG: snake_logic.py - No album result (album_result is None or False)")
         # Instead of quitting, loop back to album search
-        print("DEBUG: snake_logic.py - Restarting album search UI due to no album result")
         await start_game(screen)
         return
 
@@ -121,7 +105,6 @@ async def start_game(screen):
     
     album_cover_surface = await download_and_resize_album_cover_async(image_url, width, height)
     if album_cover_surface is None:
-        print("DEBUG: snake_logic.py - Failed to load album cover")
         # Instead of quitting, loop back to album search
         await start_game(screen)
         return
@@ -138,8 +121,6 @@ async def start_game(screen):
         song_display_state["name"] = track_name
         song_display_state["artist"] = track_artist
         song_display_state["easter_egg_primed"] = is_ee_primed
-        print(f"DEBUG: snake_logic.py - Song updated: {track_name} by {track_artist}")
-        print(f"DEBUG: snake_logic.py - Easter egg primed: {is_ee_primed}")
 
     # Show simple loading message
     from spotipy_handling import show_loading_screen
@@ -147,46 +128,38 @@ async def start_game(screen):
 
     song_display_state["name"] = "Loading first game song..."
     song_display_state["artist"] = ""
-    print("DEBUG: snake_logic.py - Starting first track")
     
     # Clear any existing playback before starting new album
-    print("DEBUG: snake_logic.py - Clearing existing playback before new album")
     try:
         from spotipy_handling import safe_pause_playback
         await safe_pause_playback()
         await asyncio.sleep(0.5)  # Give Spotify time to stop
-        print("DEBUG: snake_logic.py - Existing playback cleared")
     except Exception as e:
-        print(f"DEBUG: snake_logic.py - Error clearing playback: {e}")
+        pass
     
     # Reset first song flag for new album
     try:
         import js
         if hasattr(js.window, 'first_song_played'):
             delattr(js.window, 'first_song_played')
-            print("DEBUG: snake_logic.py - Reset first_song_played flag for new album")
     except Exception as e:
-        print(f"DEBUG: snake_logic.py - Error resetting first_song_played flag: {e}")
+        pass
     
     # Get album tracks and play a random one - with confirmation
     from spotipy_handling import play_random_track_from_album, verify_album_playability
-    print(f"DEBUG: snake_logic.py - Verifying album playability: {album_result['uri']}")
     
     # First, verify we can access album tracks
     # Add a small delay to ensure session is established
-    print("DEBUG: snake_logic.py - Waiting for session to stabilize...")
     await asyncio.sleep(0.5)
     
     album_playable = await verify_album_playability(album_result['uri'])
     if not album_playable:
-        print("DEBUG: snake_logic.py - Album not playable, returning to search")
         # Show error message briefly
         await show_loading_screen(screen, f"Error: Cannot play {album_result['name']}", 2.0)
         await show_loading_screen(screen, "Returning to album search...", 1.0)
         await start_game(screen)
         return
     
-    print(f"DEBUG: snake_logic.py - Album verified playable, starting first track")
     await play_random_track_from_album(album_result['uri'], update_song_display_from_callback)
     
     # Wait a moment and verify the song actually started
@@ -204,7 +177,6 @@ async def start_game(screen):
     ]
     
     if song_display_state["name"] in failed_states:
-        print(f"DEBUG: snake_logic.py - First track failed to start. Current state: {song_display_state['name']}")
         if "Authentication Required" in song_display_state["name"]:
             await show_loading_screen(screen, "Authentication expired. Please login again.", 2.0)
             await show_loading_screen(screen, "Returning to login...", 1.0)
@@ -216,18 +188,11 @@ async def start_game(screen):
             await start_game(screen)
             return
     
-    print(f"DEBUG: snake_logic.py - Song confirmed playing: {song_display_state['name']}")
     
-    print("DEBUG: snake_logic.py - First track confirmed started")
 
     album_pieces = cut_image_into_pieces(album_cover_surface, ALBUM_GRID_SIZE, ALBUM_GRID_SIZE)
     revealed_pieces = set()
     total_album_pieces = (width // ALBUM_GRID_SIZE) * (height // ALBUM_GRID_SIZE)
-    print(f"DEBUG: snake_logic.py - Album cut into {len(album_pieces)} pieces")
-    print(f"DEBUG: snake_logic.py - Album cover surface size: {album_cover_surface.get_size()}")
-    print(f"DEBUG: snake_logic.py - ALBUM_GRID_SIZE: {ALBUM_GRID_SIZE}")
-    print(f"DEBUG: snake_logic.py - Total album pieces expected: {total_album_pieces}")
-    print(f"DEBUG: snake_logic.py - Album pieces keys: {list(album_pieces.keys())[:5]}...")  # Show first 5 keys
 
     snake_pos = [width // 2, height // 2]
     # Initialize snake body to start at center and extend left (since initial direction is RIGHT)
@@ -237,9 +202,6 @@ async def start_game(screen):
     score = 0
     
     # Debug: print snake starting position
-    print(f"DEBUG: snake_logic.py - Snake starting position: {snake_pos}")
-    print(f"DEBUG: snake_logic.py - Snake body: {snake_body}")
-    print(f"DEBUG: snake_logic.py - Initial direction: {direction}")
 
     def random_fruit_pos():
         """Generates a valid random position for a new fruit, avoiding snake body and revealed areas."""
@@ -269,7 +231,6 @@ async def start_game(screen):
     speed_increment = 1.0  # Increase speed by 1.0 each song change
     max_speed = 25  # Maximum speed cap
 
-    print("DEBUG: snake_logic.py - Starting main game loop")
     while running:
         current_time = time.monotonic()
         if current_time - last_pulse_time > pulse_interval:
@@ -279,7 +240,6 @@ async def start_game(screen):
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                print("DEBUG: snake_logic.py - QUIT event in game loop")
                 await quit_game_async()
                 return
             if event.type == pygame.KEYDOWN:
@@ -308,19 +268,14 @@ async def start_game(screen):
 
         if snake_pos == fruit_pos:
             score += 10
-            print(f"DEBUG: snake_logic.py - Fruit eaten, score: {score}")
             if fruit_album_grid not in revealed_pieces:
                 revealed_pieces.add(fruit_album_grid)
-                print(f"DEBUG: snake_logic.py - Revealed piece {fruit_album_grid}")
 
             if song_display_state["easter_egg_primed"]:
-                print("DEBUG: snake_logic.py - Easter egg triggered!")
-                print(f"DEBUG: snake_logic.py - Current song: {song_display_state['name']} by {song_display_state['artist']}")
                 await trigger_easter_egg_sequence(screen, album_pieces, song_display_state["name"], song_display_state["artist"])
                 return
 
             if len(revealed_pieces) >= total_album_pieces:
-                print("DEBUG: snake_logic.py - All pieces revealed, winning!")
                 await winning_screen(screen, score, album_pieces)
                 return
 
@@ -328,11 +283,9 @@ async def start_game(screen):
             fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
             
             if score > 0 and score % 50 == 0:
-                print(f"DEBUG: snake_logic.py - Score milestone reached: {score}, changing song")
                 
                 # Increase speed for progressive difficulty
                 current_speed = min(current_speed + speed_increment, max_speed)
-                print(f"DEBUG: snake_logic.py - Speed increased to {current_speed:.1f}")
                 
                 song_display_state["name"] = "Changing song..."
                 song_display_state["artist"] = ""
@@ -342,11 +295,9 @@ async def start_game(screen):
         if (snake_pos[0] < 0 or snake_pos[0] >= width or
             snake_pos[1] < 0 or snake_pos[1] >= height or
             snake_pos in snake_body[1:]):
-            print(f"DEBUG: snake_logic.py - Game over, final score: {score}")
             await game_over(screen, score, album_result)
             return
         elif score > 990 and len(revealed_pieces) >= total_album_pieces:
-            print("DEBUG: snake_logic.py - Winning condition met!")
             await winning_screen(screen, score, album_pieces)
             return
 
@@ -409,8 +360,6 @@ def show_speed(screen, current_speed):
 
 async def winning_screen(screen, score, album_pieces):
     """Displays the winning screen, plays a victory song, and shows New Game button."""
-    print("DEBUG: snake_logic.py - winning_screen called")
-    print("DEBUG: snake_logic.py - Playing winning track")
     await play_track_via_backend(WINNING_TRACK_URI, 33000)
     
     font = pygame.font.SysFont('Press Start 2P', 45)
@@ -462,18 +411,14 @@ async def winning_screen(screen, score, album_pieces):
 
 async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, prev_track_artist):
     """Handles the Easter egg event: plays a special song and shows a message."""
-    print("DEBUG: snake_logic.py - trigger_easter_egg_sequence called")
-    print(f"DEBUG: snake_logic.py - Previous track: {prev_track_name} by {prev_track_artist}")
 
     played_ee_successfully = await play_track_via_backend(EASTER_EGG_TRACK_URI, 176000)
     
     if not played_ee_successfully:
-        print("DEBUG: snake_logic.py - Easter egg track failed to play")
         pass
     else:
-        print("DEBUG: snake_logic.py - Easter egg track started successfully")
+        pass
 
-    print("DEBUG: snake_logic.py - Starting easter egg animation sequence")
     easter_egg_start_time = time.monotonic()
     while time.monotonic() - easter_egg_start_time < 3:
         for event in pygame.event.get(): 
@@ -494,7 +439,6 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
         pygame.display.flip()
         await asyncio.sleep(1/30)
         
-    print("DEBUG: snake_logic.py - Creating easter egg message surfaces")
     special_message_font = pygame.font.SysFont('Press Start 2P', 30)
     button_font = pygame.font.SysFont('Press Start 2P', 25)
     message_line0_text = "A thank you from the creator: Daniel Eskandar"
@@ -515,7 +459,6 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
     button_w, button_h = 400, 50
     button_x, button_y = width // 2 - button_w // 2, height // 2 + 80 
     button_rect = pygame.Rect(button_x, button_y, button_w, button_h)
-    print("DEBUG: snake_logic.py - Starting easter egg message loop")
     message_loop = True
     while message_loop:
         for event in pygame.event.get():
@@ -544,33 +487,28 @@ async def trigger_easter_egg_sequence(screen, album_pieces, prev_track_name, pre
 
 async def restart_game_with_album(screen, album_result):
     """Restarts the game with the same album without going through the search screen."""
-    print(f"DEBUG: snake_logic.py - restart_game_with_album called with album: {album_result['name']}")
     
     # Clear any existing playback before starting new game
-    print("DEBUG: snake_logic.py - Clearing existing playback before restart")
     try:
         from spotipy_handling import safe_pause_playback
         await safe_pause_playback()
         await asyncio.sleep(0.5)  # Give Spotify time to stop
-        print("DEBUG: snake_logic.py - Existing playback cleared")
     except Exception as e:
-        print(f"DEBUG: snake_logic.py - Error clearing playback: {e}")
+        pass
     
     # Reset first song flag for restart
     try:
         import js
         if hasattr(js.window, 'first_song_played'):
             delattr(js.window, 'first_song_played')
-            print("DEBUG: snake_logic.py - Reset first_song_played flag for restart")
     except Exception as e:
-        print(f"DEBUG: snake_logic.py - Error resetting first_song_played flag: {e}")
+        pass
     
     # Start the game with the same album
     await start_game_with_album(screen, album_result)
 
 async def start_game_with_album(screen, album_result):
     """Starts the game with a specific album (used for retry functionality)."""
-    print(f"DEBUG: snake_logic.py - start_game_with_album called with album: {album_result['name']}")
     
     # Handle the case where image_url might be None or missing
     image_url = album_result.get('image_url')
@@ -579,7 +517,6 @@ async def start_game_with_album(screen, album_result):
     
     album_cover_surface = await download_and_resize_album_cover_async(image_url, width, height)
     if album_cover_surface is None:
-        print("DEBUG: snake_logic.py - Failed to load album cover for retry")
         await start_menu()
         return
 
@@ -595,22 +532,17 @@ async def start_game_with_album(screen, album_result):
         song_display_state["name"] = track_name
         song_display_state["artist"] = track_artist
         song_display_state["easter_egg_primed"] = is_ee_primed
-        print(f"DEBUG: snake_logic.py - Song updated: {track_name} by {track_artist}")
 
     song_display_state["name"] = "Loading first game song..."
     song_display_state["artist"] = ""
-    print("DEBUG: snake_logic.py - Starting first track for retry")
     
     # Get album tracks and play a random one
     from spotipy_handling import play_random_track_from_album
-    print(f"DEBUG: snake_logic.py - Playing random track from album: {album_result['uri']}")
     await play_random_track_from_album(album_result['uri'], update_song_display_from_callback)
-    print("DEBUG: snake_logic.py - First track started for retry")
 
     album_pieces = cut_image_into_pieces(album_cover_surface, ALBUM_GRID_SIZE, ALBUM_GRID_SIZE)
     revealed_pieces = set()
     total_album_pieces = (width // ALBUM_GRID_SIZE) * (height // ALBUM_GRID_SIZE)
-    print(f"DEBUG: snake_logic.py - Album cut into {len(album_pieces)} pieces for retry")
 
     snake_pos = [width // 2, height // 2]
     snake_body = [[snake_pos[0] - i * GRID_SIZE, snake_pos[1]] for i in range(5)]
@@ -646,7 +578,6 @@ async def start_game_with_album(screen, album_result):
     speed_increment = 1.0  # Increase speed by 1.0 each song change
     max_speed = 25  # Maximum speed cap
 
-    print("DEBUG: snake_logic.py - Starting main game loop for retry")
     while running:
         current_time = time.monotonic()
         if current_time - last_pulse_time > pulse_interval:
@@ -656,7 +587,6 @@ async def start_game_with_album(screen, album_result):
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                print("DEBUG: snake_logic.py - QUIT event in game loop")
                 await quit_game_async()
                 return
             if event.type == pygame.KEYDOWN:
@@ -685,18 +615,14 @@ async def start_game_with_album(screen, album_result):
 
         if snake_pos == fruit_pos:
             score += 10
-            print(f"DEBUG: snake_logic.py - Fruit eaten, score: {score}")
             if fruit_album_grid not in revealed_pieces:
                 revealed_pieces.add(fruit_album_grid)
-                print(f"DEBUG: snake_logic.py - Revealed piece {fruit_album_grid}")
 
             if song_display_state["easter_egg_primed"]:
-                print("DEBUG: snake_logic.py - Easter egg triggered!")
                 await trigger_easter_egg_sequence(screen, album_pieces, song_display_state["name"], song_display_state["artist"])
                 return
 
             if len(revealed_pieces) >= total_album_pieces:
-                print("DEBUG: snake_logic.py - All pieces revealed, winning!")
                 await winning_screen(screen, score, album_pieces)
                 return
 
@@ -704,11 +630,9 @@ async def start_game_with_album(screen, album_result):
             fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
             
             if score > 0 and score % 50 == 0:
-                print(f"DEBUG: snake_logic.py - Score milestone reached: {score}, changing song")
                 
                 # Increase speed for progressive difficulty
                 current_speed = min(current_speed + speed_increment, max_speed)
-                print(f"DEBUG: snake_logic.py - Speed increased to {current_speed:.1f}")
                 
                 song_display_state["name"] = "Changing song..."
                 song_display_state["artist"] = ""
@@ -718,11 +642,9 @@ async def start_game_with_album(screen, album_result):
         if (snake_pos[0] < 0 or snake_pos[0] >= width or
             snake_pos[1] < 0 or snake_pos[1] >= height or
             snake_pos in snake_body[1:]):
-            print(f"DEBUG: snake_logic.py - Game over, final score: {score}")
             await game_over(screen, score, album_result)
             return
         elif score > 990 and len(revealed_pieces) >= total_album_pieces:
-            print("DEBUG: snake_logic.py - Winning condition met!")
             await winning_screen(screen, score, album_pieces)
             return
 
@@ -757,7 +679,6 @@ async def start_game_with_album(screen, album_result):
 
 async def game_over(screen, score, album_result=None):
     """Displays the game over message and returns to the start menu after a delay."""
-    print(f"DEBUG: snake_logic.py - game_over called with score: {score}")
     game_over_font = pygame.font.SysFont('Press Start 2P', 40)
     new_game_font = pygame.font.SysFont('Press Start 2P', 25)
     
@@ -795,11 +716,9 @@ async def game_over(screen, score, album_result=None):
                 return
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if retry_button_rect.collidepoint(event.pos) and album_result:
-                    print("DEBUG: snake_logic.py - Retry Album button clicked")
                     await restart_game_with_album(screen, album_result)
                     return
                 elif new_game_button_rect.collidepoint(event.pos):
-                    print("DEBUG: snake_logic.py - New Game button clicked")
                     # Go directly to album search instead of start menu
                     await start_game(screen)
                     return
