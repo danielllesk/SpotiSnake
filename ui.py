@@ -9,7 +9,6 @@ from spotipy_handling import check_authenticated, backend_login, play_track_via_
 pygame.init()
 pygame.font.init()
 
-# Set up display
 screen = pygame.display.set_mode((width, height))
 pygame.display.set_caption('SpotiSnake')
 font = pygame.font.SysFont('Press Start 2P', 30)
@@ -31,7 +30,6 @@ async def quit_game_async():
     except Exception as e:
         pass
     
-    # Force exit if running as executable
     if getattr(sys, 'frozen', False):
         os._exit(0)
     else:
@@ -63,7 +61,6 @@ async def login_screen():
         "This is required for the game to work!"
     ]
 
-    # Force a full redraw and clear event queue to fix first-load issues
     pygame.event.clear()
     if game_bg:
         screen.blit(game_bg, (0, 0))
@@ -94,7 +91,6 @@ async def login_screen():
                 if login_button.collidepoint(event.pos) and not is_authenticating:
                     is_authenticating = True
                     current_login_text = "Opening login..."
-                    # Draw UI update for logging in
                     pygame.draw.rect(screen, DARK_BLUE, login_button)
                     text_surf_auth = font.render(current_login_text, True, BLACK)
                     text_rect_auth = text_surf_auth.get_rect(center=login_button.center)
@@ -103,24 +99,20 @@ async def login_screen():
                     try:
                         backend_login()
                         
-                        # Now wait until backend session is actually authenticated
                         wait_title = small_font.render("Complete login in the opened tab...", True, WHITE)
                         waiting = True
                         last_check = 0
                         start_time = time.time()
-                        max_wait_time = 60  # 60 seconds timeout
+                        max_wait_time = 60
                         while waiting:
-                            # Check for timeout
                             if time.time() - start_time > max_wait_time:
                                 error_message = "Login timeout. Please try again."
                                 error_timer = time.time()
                                 return False
-                            # Process quit events while waiting
                             for ev in pygame.event.get():
                                 if ev.type == pygame.QUIT:
                                     await quit_game_async()
                                     return False
-                            # Redraw background and hints
                             if game_bg:
                                 screen.blit(game_bg, (0, 0))
                             else:
@@ -129,7 +121,6 @@ async def login_screen():
                             hint = small_font.render("Return here after confirming login", True, WHITE)
                             screen.blit(hint, (width//2 - hint.get_width()//2, height//2 + 20))
                             pygame.display.flip()
-                            # Throttle checks
                             now = time.time()
                             if now - last_check > 0.5:
                                 last_check = now
@@ -146,27 +137,22 @@ async def login_screen():
                     finally:
                         is_authenticating = False
                         current_login_text = login_text_default
-        # Always draw the background and UI before any authentication logic
         if game_bg:
             screen.blit(game_bg, (0, 0))
         else:
             screen.fill(DARK_GREY)
-        # Draw title
         title = title_font.render("Welcome to SpotiSnake!", True, BLACK)
         screen.blit(title, (width//2 - title.get_width()//2, height//4))
-        # Draw login button
         button_color = DARK_BLUE if is_authenticating else LIGHT_BLUE
         pygame.draw.rect(screen, button_color, login_button)
         text_surf = font.render(current_login_text, True, BLACK)
         text_rect = text_surf.get_rect(center=login_button.center)
         screen.blit(text_surf, text_rect)
-        # Draw instructions
         y_offset = height//2 + 50
         for instruction in instructions:
             text = small_font.render(instruction, True, WHITE)
             screen.blit(text, (width//2 - text.get_width()//2, y_offset))
             y_offset += 40
-        # Draw error message if any
         if error_message and time.time() - error_timer < 5:
             error_surf = small_font.render(error_message, True, RED)
             screen.blit(error_surf, (width//2 - error_surf.get_width()//2, height - 50))
@@ -178,7 +164,6 @@ async def main_menu():
     """Displays the main menu without checking authentication."""
     clock = pygame.time.Clock()
     
-    # Check if we're in a browser environment for music handling
     try:
         import js
         is_browser = hasattr(js, 'window')
@@ -186,7 +171,7 @@ async def main_menu():
         is_browser = False
     
     if is_browser:
-        pass  # Browser environment detected, music will be manual
+        pass
     
     running = True
     button_play_text = "PLAY GAME"
@@ -215,13 +200,11 @@ async def main_menu():
                     await start_game(screen)
                     break
         
-        # Draw background
         if start_menu_bg:
             screen.blit(start_menu_bg, (0, 0))
         else:
             screen.fill(DARK_GREY)
         
-        # Draw the play button
         mouse_pos = pygame.mouse.get_pos()
         play_button_rect = pygame.Rect(button_x, play_button_y, button_width, button_height)
         play_hovered = play_button_rect.collidepoint(mouse_pos)
@@ -243,9 +226,7 @@ async def start_menu():
     """Displays the start menu, handles login, and starts the game or quits."""
     clock = pygame.time.Clock()
     
-    # Check if already authenticated
     is_authenticated = await check_authenticated()
-    # Force login screen every time to avoid authentication/cookie issues
     is_authenticated = False
     if not is_authenticated:
         login_success = await login_screen()
@@ -253,13 +234,11 @@ async def start_menu():
             await quit_game_async()
             return
     
-    # Play background music only after successful login
     try:
         await play_track_via_backend(START_MENU_URI, 0)
     except Exception as e:
         pass
     
-    # Always show main menu, even if already authenticated
     await main_menu()
 
 async def main():

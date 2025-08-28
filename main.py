@@ -7,7 +7,6 @@ pygame.font.init()
 
 async def main():
     try:
-        # Set up page unload handler to pause music when user leaves (non-blocking)
         try:
             from spotipy_handling import setup_page_unload_handler
             setup_page_unload_handler()

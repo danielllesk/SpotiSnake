@@ -8,10 +8,8 @@ import os
 import time
 import js
 
-# Use deployed backend URL for production
 BACKEND_URL = os.environ.get("SPOTISNAKE_BACKEND_URL", "https://spotisnake.onrender.com")
 
-# Test backend connectivity on startup
 def test_backend_connectivity():
     """Test if backend is accessible and check CORS headers"""
     try:
@@ -51,16 +49,9 @@ def test_backend_connectivity():
     except Exception as e:
         pass
 
-# Run connectivity test
+#  connectivity test
 test_backend_connectivity()
 
-# Remove requests session for browser build
-# session = requests.Session()
-# session.headers.update({
-#     'User-Agent': 'SpotiSnake/1.0',
-#     'Accept': 'application/json',
-#     'Content-Type': 'application/json'
-# })
 
 clock = pygame.time.Clock()
 pygame.init()
@@ -71,9 +62,9 @@ USER_ABORT_GAME_FROM_SEARCH = "USER_ABORT_GAME_FROM_SEARCH"
 is_logging_in = False
 
 # Local testing flag - set to True to bypass authentication for local testing
-LOCAL_TESTING_MODE = False  # Set to False for production
+LOCAL_TESTING_MODE = False  
 
-device_id_cache = None  # Cache for Spotify device ID
+device_id_cache = None  
 
 def clear_device_id_cache():
     global device_id_cache
@@ -100,7 +91,7 @@ def backend_login():
         except Exception as e:
             is_logging_in = False
     else:
-        # Fallback for desktop Python
+        # for desktop Python
         try:
             import webbrowser
             webbrowser.open(login_url)
@@ -110,14 +101,14 @@ def backend_login():
 
 def is_pyodide():
     """Check if we're running in a browser environment (pygbag/pyodide)"""
+    #this function will just be used to make sure we are in a browser environment and not local environment, debugger function essentially
     try:
         import js
-        # Check for browser-specific attributes
         has_window = hasattr(js, 'window')
         has_fetch = hasattr(js, 'fetch')
         has_eval = hasattr(js, 'eval')
         
-        # In pygbag/pyodide, we should have all these
+        # pygbag/pyodide should have all these
         is_browser = has_window and has_fetch and has_eval
         
         return is_browser
@@ -126,16 +117,10 @@ def is_pyodide():
     except AttributeError:
         return False
 
-# Helper to await JS Promises in Pygbag/Pyodide
-import types
-
 def await_js_promise(promise):
-    # In Pyodide/Pygbag, we can directly await JS promises
     try:
-        # Try to use the promise directly
         return promise
     except Exception as e:
-        # Fallback: return the promise as-is
         return promise
 
 # Expose a Python callback for JS to call with the auth result
@@ -152,7 +137,6 @@ def handle_auth_result(result_json):
     else:
         js.auth_success = False
 
-# Check if we're in a browser environment with proper js module
 try:
     if hasattr(js, 'window'):
         js.window.handle_auth_result = handle_auth_result  # Attach to window explicitly
@@ -160,19 +144,12 @@ try:
     else:
         js.auth_success = False
 except Exception as e:
-    # Don't set js.auth_success if js module is not properly available
     pass
 
 async def check_authenticated():
-    
-    # Check if we're in a browser environment
     if not is_pyodide():
-        # For desktop, we'll assume not authenticated and show login screen
         return False
-    
-    import js
-    import json
-    
+    import js    
     js_code = f'''
     console.log("JS: Starting fetch for auth check");
     fetch("{BACKEND_URL}/me", {{
@@ -200,17 +177,14 @@ async def check_authenticated():
     try:
         js.eval(js_code)
         import asyncio
-        await asyncio.sleep(0.3)  # Wait a bit longer for the fetch to complete
+        await asyncio.sleep(0.3)  
         
         if hasattr(js.window, 'auth_check_result'):
-            result = js.window.auth_check_result
-            
-            # Handle JavaScript object properly
+            result = js.window.auth_check_result            
             try:
                 if hasattr(result, 'status'):
                     status = result.status
                     if status == 200:
-                        # Check if the response actually contains user data, not an error
                         try:
                             if hasattr(result, 'text'):
                                 response_text = result.text
@@ -225,7 +199,7 @@ async def check_authenticated():
                         except Exception as e:
                             return False
                     else:
-                        # Try to get the error text
+                        # get the error text
                         try:
                             if hasattr(result, 'text'):
                                 error_text = result.text
@@ -235,7 +209,7 @@ async def check_authenticated():
                 elif isinstance(result, dict):
                     status = result.get('status', 500)
                     if status == 200:
-                        # Check if the response actually contains user data, not an error
+                        # Check if the response actually contains user data
                         response_text = result.get('text', '')
                         # Check if response contains error message
                         if '"error"' in response_text.lower():
@@ -248,7 +222,6 @@ async def check_authenticated():
                     else:
                         return False
                 else:
-                    # Try to access properties anyway
                     try:
                         status = getattr(result, 'status', 500)
                         if status == 200:
@@ -264,30 +237,6 @@ async def check_authenticated():
     except Exception as e:
         return False
 
-def search_album(query):
-    # In browser, this should be handled by backend API call
-    return None
-
-def play_track(uri, device_id=None, position_ms=0):
-    # In browser, this should be handled by backend API call
-    return False
-
-def pause_playback(device_id=None):
-    # In browser, this should be handled by backend API call
-    return False
-
-def get_devices():
-    # In browser, this should be handled by backend API call
-    return None
-
-def get_current_playback():
-    # In browser, this should be handled by backend API call
-    return None
-
-def get_album_tracks(album_id):
-    # In browser, this should be handled by backend API call
-    return None
-
 async def download_and_resize_album_cover_async(url, target_width, target_height):
     """Download and resize album cover asynchronously using backend proxy to avoid CORS"""
     
@@ -298,7 +247,6 @@ async def download_and_resize_album_cover_async(url, target_width, target_height
     try:
         import js
         import base64
-        # Check if we're in a proper browser environment (pygbag/pyodide)
         if is_pyodide():
             pass
         else:
@@ -332,7 +280,7 @@ async def download_and_resize_album_cover_async(url, target_width, target_height
         except Exception as e:
             return create_visual_album_cover(url, target_width, target_height)
     
-    # First, let's test if JavaScript is working at all
+    # test if JavaScript is working at all
     test_js = '''
     console.log("JavaScript test: Hello from JS!");
     window.js_test_result = "JavaScript is working";
@@ -349,7 +297,7 @@ async def download_and_resize_album_cover_async(url, target_width, target_height
             pass
             
     except Exception as e:
-        # If JavaScript is not working, fall back to Python immediately
+        # If JavaScript is not working, fall back to Python 
         raise ImportError("JavaScript not working")
     
     js_code = f'''

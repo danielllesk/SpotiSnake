@@ -15,32 +15,24 @@ logging.basicConfig(
     format='%(asctime)s %(levelname)s %(message)s'
 )
 
-
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "supersecretkey")
 
-# --- CORS and Session Cookie Config for Cross-Origin Auth ---
-# For development, we need to handle both HTTP and HTTPS
 is_development = os.environ.get('FLASK_ENV') == 'development'
 
 if is_development:
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # More permissive for local development
-    app.config['SESSION_COOKIE_SECURE'] = False    # Allow HTTP for local development
-    app.config['SESSION_COOKIE_DOMAIN'] = None     # No domain restriction for local development
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+    app.config['SESSION_COOKIE_SECURE'] = False
+    app.config['SESSION_COOKIE_DOMAIN'] = None
 else:
-    app.config['SESSION_COOKIE_SAMESITE'] = 'None'  # Allow cross-site cookies
-    app.config['SESSION_COOKIE_SECURE'] = True      # Required for SameSite=None (must use HTTPS)
-    app.config['SESSION_COOKIE_DOMAIN'] = None      # No domain restriction for now
+    app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+    app.config['SESSION_COOKIE_SECURE'] = True
+    app.config['SESSION_COOKIE_DOMAIN'] = None
 
-# Set session lifetime to 24 hours to prevent premature expiration
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
 
-# Add session debugging
-
-# More permissive CORS configuration
 CORS(app, supports_credentials=True, 
      origins=[
-         # Allow all localhost variants (including IPv6)
          "http://localhost:8000",
          "http://127.0.0.1:8000", 
          "http://[::1]:8000",
@@ -55,12 +47,10 @@ CORS(app, supports_credentials=True,
          "https://localhost:3000",
          "https://localhost:8080",
          "https://localhost:9000",
-         # Production domains
          "https://spotisnake.onrender.com",
          "https://danielllesk.itch.io",
          "https://danielllesk.itch.io/spotisnake",
          "https://html-classic.itch.zone",
-         # Allow any itch.io subdomain
          "https://*.itch.io",
          "https://*.itch.zone"
      ],
@@ -70,15 +60,12 @@ CORS(app, supports_credentials=True,
      credentials=True
      )
 
-# Add CORS debugging middleware
 @app.before_request
 def log_request_info():
     pass
 
-# Add comprehensive CORS handler
 def add_cors_headers(response):
     """Add CORS headers to response"""
-    # Handle tuple responses (status code, response)
     if isinstance(response, tuple):
         response_obj, status_code = response
     else:
@@ -91,7 +78,7 @@ def add_cors_headers(response):
         "http://localhost:8000",
         "http://127.0.0.1:8000",
         "http://[::1]:8000",
-        "http://[::]:8000",  # Explicitly include IPv6 loopback
+        "http://[::]:8000",
         "https://localhost:8000",
         "https://127.0.0.1:8000",
         "https://[::1]:8000",
@@ -121,16 +108,13 @@ def add_cors_headers(response):
         return response_obj, status_code
     return response_obj
 
-# Catch-all OPTIONS handler for CORS preflight
 @app.route('/', defaults={'path': ''}, methods=['OPTIONS'])
 @app.route('/<path:path>', methods=['OPTIONS'])
 def handle_options(path):
     
-    # Create response with CORS headers
     response = jsonify({'status': 'ok'})
     response = add_cors_headers(response)
     
-    # Add additional CORS headers for preflight
     origin = request.headers.get('Origin')
     if origin:
         response.headers['Access-Control-Allow-Origin'] = origin
@@ -147,9 +131,6 @@ sp_oauth = SpotifyPKCE(
     open_browser=False,  # handles redirect
     cache_path=None
 )
-
-# Global token storage (in production, use a proper database)
-# global_token_info = None
 
 def get_spotify():
     token_info = session.get('token_info')
@@ -277,7 +258,6 @@ def callback():
 @app.route('/me')
 def me():
     
-    # Check session first
     token_info = session.get('token_info')
     if not token_info:
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
@@ -317,7 +297,6 @@ def search():
         return response
     
     
-    # Check session first
     token_info = session.get('token_info')
     if not token_info:
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
@@ -374,7 +353,6 @@ def play():
         return response
     
     
-    # Check session first
     token_info = session.get('token_info')
     if not token_info:
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
@@ -441,7 +419,6 @@ def pause():
         return response
     
     
-    # Check session first
     token_info = session.get('token_info')
     if not token_info:
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
@@ -475,7 +452,6 @@ def pause():
 @app.route('/devices')
 def devices():
     
-    # Check session first
     token_info = session.get('token_info')
     if not token_info:
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
@@ -493,7 +469,6 @@ def devices():
 @app.route('/currently_playing')
 def currently_playing():
     
-    # Check session first
     token_info = session.get('token_info')
     if not token_info:
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
@@ -565,9 +540,6 @@ def debug_session():
 @app.route('/album_tracks')
 def album_tracks():
     
-    # Add detailed session debugging
-    
-    # Check session first
     token_info = session.get('token_info')
     if not token_info:
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
@@ -656,7 +628,6 @@ def force_auth():
 def test_play():
     """Test endpoint to check if play would work"""
     
-    # Check session first
     token_info = session.get('token_info')
     if not token_info:
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
@@ -680,7 +651,6 @@ def test_play():
 def test_search():
     """Test endpoint to check if search would work"""
     
-    # Check session first
     token_info = session.get('token_info')
     if not token_info:
         response = jsonify({'error': 'Not authenticated - no token in session'}), 401
