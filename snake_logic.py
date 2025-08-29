@@ -187,22 +187,7 @@ async def start_game(screen):
     change_to = direction
     score = 0
 
-    def random_fruit_pos():
-        """Generates a valid random position for a new fruit, avoiding snake body and revealed areas."""
-        while True:
-            pos = [random.randrange(0, width // GRID_SIZE) * GRID_SIZE,
-                   random.randrange(0, height // GRID_SIZE) * GRID_SIZE]
-            valid_pos = True
-            fruit_on_album_grid_col = pos[0] // ALBUM_GRID_SIZE
-            fruit_on_album_grid_row = pos[1] // ALBUM_GRID_SIZE
-            if (fruit_on_album_grid_col, fruit_on_album_grid_row) in revealed_pieces:
-                valid_pos = False
-            
-            if valid_pos:
-                if list(pos) not in snake_body:
-                    return pos
-
-    fruit_pos = random_fruit_pos()
+    fruit_pos = random_fruit_pos(width, height, GRID_SIZE, ALBUM_GRID_SIZE, revealed_pieces, snake_body)
     fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
 
     running = True
@@ -260,7 +245,7 @@ async def start_game(screen):
                 await winning_screen(screen, score, album_pieces)
                 return
 
-            fruit_pos = random_fruit_pos()
+            fruit_pos = random_fruit_pos(width, height, GRID_SIZE, ALBUM_GRID_SIZE, revealed_pieces, snake_body)
             fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
             
             if score > 0 and score % 50 == 0:
@@ -510,22 +495,7 @@ async def start_game_with_album(screen, album_result):
     change_to = direction
     score = 0
 
-    def random_fruit_pos():
-        """Generates a valid random position for a new fruit, avoiding snake body and revealed areas."""
-        while True:
-            pos = [random.randrange(0, width // GRID_SIZE) * GRID_SIZE,
-                   random.randrange(0, height // GRID_SIZE) * GRID_SIZE]
-            valid_pos = True
-            fruit_on_album_grid_col = pos[0] // ALBUM_GRID_SIZE
-            fruit_on_album_grid_row = pos[1] // ALBUM_GRID_SIZE
-            if (fruit_on_album_grid_col, fruit_on_album_grid_row) in revealed_pieces:
-                valid_pos = False
-            
-            if valid_pos:
-                if list(pos) not in snake_body:
-                    return pos
-
-    fruit_pos = random_fruit_pos()
+    fruit_pos = random_fruit_pos(width, height, GRID_SIZE, ALBUM_GRID_SIZE, revealed_pieces, snake_body)
     fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
 
     running = True
@@ -583,7 +553,7 @@ async def start_game_with_album(screen, album_result):
                 await winning_screen(screen, score, album_pieces)
                 return
 
-            fruit_pos = random_fruit_pos()
+            fruit_pos = random_fruit_pos(width, height, GRID_SIZE, ALBUM_GRID_SIZE, revealed_pieces, snake_body)
             fruit_album_grid = (fruit_pos[0] // ALBUM_GRID_SIZE, fruit_pos[1] // ALBUM_GRID_SIZE)
             
             if score > 0 and score % 50 == 0:
