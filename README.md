@@ -2,6 +2,9 @@
 
 **SpotiSnake** is an innovative fusion of the classic Snake game and Spotify album listening. Eat apples, reveal the full artwork, and enjoy real-time music as you play!
 
+## 🎮 Game Demo
+[![SpotiSnake Demo](SpotipyStart.png)](https://drive.google.com/file/d/16VPgypl2U5lpsohWYjmzz7eUBgQWz4iM/view?usp=sharing) 
+
 ## 🎮 Game Overview
 
 SpotiSnake transforms your favorite albums into an interactive gaming experience:
