@@ -85,7 +85,9 @@ Pygame is a Python library specifically designed for game development. It provid
 - Handling user input (keyboard, mouse)
 - Playing sounds and music
 - Managing game loops and timing
+  
 **Journey Note:** I used Pygame instead of other languages/technologies because it seemed very simple in the tutorial and made debugging very easy. However, using Pygame, the Spotify API, and Pyodide together (a bunch of technologies that aren't necessarily designed to work together) opened up a world of new problems.
+
 **Key Pygame Concepts:**
 
 **Surface Objects:**
